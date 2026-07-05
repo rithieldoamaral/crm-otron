@@ -76,6 +76,62 @@ export function derivePackageStatus(
   return "active";
 }
 
+// ── hasActivePackage ──────────────────────────────────────────────────────────
+
+/**
+ * Subconjunto mínimo de ClientPackagePurchase necessário para decidir se um
+ * pacote está ativo. Mantido estrutural (não importa o model) para preservar a
+ * pureza deste arquivo — testável sem Sequelize.
+ */
+export interface PackagePurchaseLike {
+  sessionsUsed: number;
+  totalSessions: number;
+  expiresAt?: Date | null;
+  /** Status persistido. Só usado para excluir 'cancelled' (decisão manual do admin). */
+  status?: PackageStatus | string;
+}
+
+/**
+ * Indica se o cliente tem AO MENOS UM pacote de sessões ativo.
+ *
+ * Um pacote é "ativo" quando ainda há sessões restantes e não expirou —
+ * derivado via `derivePackageStatus`, NÃO pelo campo `status` persistido (que
+ * pode estar desatualizado se o pacote expirou sem um recálculo). O único uso do
+ * `status` persistido é excluir compras 'cancelled', pois o cancelamento é uma
+ * ação manual do admin que `derivePackageStatus` nunca produz automaticamente.
+ *
+ * Guard de retenção (Tier 2): clientes com pacote ativo estão engajados
+ * (compraram e estão consumindo) e NÃO devem ser classificados como
+ * adormecidos/perdidos nem receber campanha de winback com desconto.
+ *
+ * @param purchases     - Compras de pacote do cliente (de listClientPurchases)
+ * @param referenceDate - Data de referência para "hoje" (default: agora). Para testes.
+ * @returns true se houver pelo menos um pacote ativo na data de referência
+ *
+ * @example
+ *   hasActivePackage([{ sessionsUsed: 3, totalSessions: 10, expiresAt: null }]) // true
+ *   hasActivePackage([{ sessionsUsed: 10, totalSessions: 10, expiresAt: null }]) // false
+ */
+export function hasActivePackage(
+  purchases: PackagePurchaseLike[] | null | undefined,
+  referenceDate?: Date
+): boolean {
+  if (!purchases || purchases.length === 0) return false;
+
+  return purchases.some((p) => {
+    // Cancelamento é decisão explícita do admin — nunca é "ativo".
+    if (p.status === "cancelled") return false;
+
+    const derived = derivePackageStatus(
+      p.sessionsUsed,
+      p.totalSessions,
+      p.expiresAt ?? null,
+      referenceDate
+    );
+    return derived === "active";
+  });
+}
+
 // ── shouldSendLowBalanceAlert ─────────────────────────────────────────────────
 
 /**

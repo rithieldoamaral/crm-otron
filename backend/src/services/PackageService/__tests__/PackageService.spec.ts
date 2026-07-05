@@ -23,6 +23,7 @@ import {
   buildLowBalanceAlertMessage,
   calculatePackageDiscount,
   parseOptionalDate,
+  hasActivePackage,
 } from "../PackageService.utils";
 
 // ── calculateSessionsRemaining ────────────────────────────────────────────────
@@ -298,5 +299,87 @@ describe("parseOptionalDate", () => {
 
   it("inclui o nome do campo na mensagem (para debug)", () => {
     expect(() => parseOptionalDate("xyz", "consumedAt")).toThrow(/consumedAt/);
+  });
+});
+
+// ── hasActivePackage ──────────────────────────────────────────────────────────
+//
+// Guard de retenção (Tier 2): um cliente com pacote ATIVO (comprou N sessões e
+// ainda está consumindo) NÃO deve ser tratado como adormecido/perdido — ele já é
+// um cliente engajado. Esta função pura deriva o status real de cada compra
+// (via derivePackageStatus, não confia no campo `status` persistido que pode estar
+// desatualizado) e responde se ao menos um pacote está ativo na data de referência.
+
+describe("hasActivePackage", () => {
+  const now = new Date("2026-07-05T12:00:00Z");
+  const future = new Date("2026-12-31T12:00:00Z");
+  const past = new Date("2020-01-01T12:00:00Z");
+
+  it("retorna false para lista vazia / undefined / null", () => {
+    expect(hasActivePackage([], now)).toBe(false);
+    expect(hasActivePackage(undefined as any, now)).toBe(false);
+    expect(hasActivePackage(null as any, now)).toBe(false);
+  });
+
+  it("retorna true quando há pacote com sessões restantes e sem expiração", () => {
+    const purchases = [
+      { sessionsUsed: 3, totalSessions: 10, expiresAt: null, status: "active" },
+    ];
+    expect(hasActivePackage(purchases, now)).toBe(true);
+  });
+
+  it("retorna true quando o pacote ainda não expirou (expiresAt futuro)", () => {
+    const purchases = [
+      { sessionsUsed: 2, totalSessions: 10, expiresAt: future, status: "active" },
+    ];
+    expect(hasActivePackage(purchases, now)).toBe(true);
+  });
+
+  it("retorna false quando todas as sessões foram consumidas (completed)", () => {
+    const purchases = [
+      { sessionsUsed: 10, totalSessions: 10, expiresAt: null, status: "active" },
+    ];
+    expect(hasActivePackage(purchases, now)).toBe(false);
+  });
+
+  it("retorna false quando o pacote expirou (expiresAt no passado)", () => {
+    const purchases = [
+      { sessionsUsed: 2, totalSessions: 10, expiresAt: past, status: "active" },
+    ];
+    expect(hasActivePackage(purchases, now)).toBe(false);
+  });
+
+  it("NÃO confia no campo status persistido — deriva do estado real", () => {
+    // status persistido diz "active" mas na verdade já expirou → deve ser false
+    const staleExpired = [
+      { sessionsUsed: 2, totalSessions: 10, expiresAt: past, status: "active" },
+    ];
+    expect(hasActivePackage(staleExpired, now)).toBe(false);
+  });
+
+  it("ignora compras canceladas manualmente pelo admin", () => {
+    // 'cancelled' é decisão explícita do admin — derivePackageStatus nunca o retorna,
+    // então respeitamos o status persistido apenas para excluir cancelados.
+    const cancelled = [
+      { sessionsUsed: 2, totalSessions: 10, expiresAt: null, status: "cancelled" },
+    ];
+    expect(hasActivePackage(cancelled, now)).toBe(false);
+  });
+
+  it("retorna true se PELO MENOS UM pacote entre vários estiver ativo", () => {
+    const purchases = [
+      { sessionsUsed: 10, totalSessions: 10, expiresAt: null, status: "completed" },
+      { sessionsUsed: 1, totalSessions: 5, expiresAt: null, status: "active" },
+    ];
+    expect(hasActivePackage(purchases, now)).toBe(true);
+  });
+
+  it("retorna false quando todos os pacotes estão inativos", () => {
+    const purchases = [
+      { sessionsUsed: 10, totalSessions: 10, expiresAt: null, status: "completed" },
+      { sessionsUsed: 2, totalSessions: 10, expiresAt: past, status: "expired" },
+      { sessionsUsed: 1, totalSessions: 5, expiresAt: null, status: "cancelled" },
+    ];
+    expect(hasActivePackage(purchases, now)).toBe(false);
   });
 });

@@ -7,6 +7,42 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed — Cliente com pacote ativo classificado como adormecido/perdido (2026-07-05)
+
+Receita de pacotes é reconhecida em cash basis: um `ServiceHistory` com
+`source='package_purchase'` é criado na COMPRA, mas os consumos de sessão NÃO geram
+histórico adicional. Consequência: um cliente que comprou um pacote (ex: 10 sessões)
+e está consumindo aos poucos aparecia "parado" para o algoritmo RFM-lite do
+`DormantDetectionService` e podia ser marcado **adormecido/perdido** — entrando na lista
+de reativação e recebendo campanha de winback com desconto desnecessário. **Fix:** nova
+função pura `hasActivePackage(purchases, referenceDate?)` em
+[PackageService.utils.ts](backend/src/services/PackageService/PackageService.utils.ts)
+que deriva o status real de cada compra via `derivePackageStatus` (não confia no campo
+`status` persistido, que pode estar stale) e exclui compras `cancelled`. Aplicada em
+dois pontos: (1) [WinbackService.processContact](backend/src/services/RetentionService/WinbackService.ts)
+pula contatos com pacote ativo antes de disparar; (2)
+[RetentionController.listDormant/getSummary](backend/src/controllers/RetentionController.ts)
+excluem esses contatos da lista/sumário de reativação (batch load por empresa, sem N+1).
+Mudança mínima: a lógica de classificação (`classify`) não foi tocada. 9 testes novos da
+função pura em `PackageService.spec.ts`.
+
+### Security — Gate destrutivo da Secretária valida ID antes de estacionar confirmação (2026-07-05)
+
+O gate determinístico de ações destrutivas da Secretária estacionava a confirmação
+(`savePendingAction`) sem verificar se o ID referenciado existia. Se o LLM alucinasse um
+`scheduleId`/`ticketId` inexistente, o admin recebia "confirme: CANCELAR agendamento #999"
+e, ao responder "sim", a tool só então retornava "não encontrado" — UX ruim e ruído
+operacional. **Fix:** nova validação determinística `checkDestructiveTargetExists` em
+[secretaryLoop.ts](backend/src/services/SecretaryService/secretaryLoop.ts) que consulta
+`Schedule.findOne`/`Ticket.findOne` (filtrado por `companyId`) ANTES de estacionar as
+tools com ID simples (`cancelar_agendamento`, `reagendar_agendamento`, `fechar_ticket`,
+`reabrir_ticket`, `transferir_ticket`). ID inexistente/inválido volta ao LLM como tool
+result de erro (com dica de qual consulta usar) e o loop re-itera para o modelo se
+corrigir — nunca estaciona um alvo inexistente. `enviar_mensagem_para_cliente` não é
+coberto (pode abrir ticket novo a partir de `contactId`, sem ID único a validar aqui — a
+própria tool valida no envio). Caminho feliz (ID válido → estaciona) preservado. 3 testes
+novos em `secretaryLoop.spec.ts`.
+
 ### Fixed — Erro silencioso no auto-close de tickets (ClosedAllOpenTickets) (2026-07-05)
 
 O cron [wbotClosedTickets.ts](backend/src/services/WbotServices/wbotClosedTickets.ts)

@@ -35,12 +35,16 @@ jest.mock("../../AgentService/settingsCache", () => ({
 }));
 jest.mock("../../AgentService/providers/AIProviderFactory");
 jest.mock("../../../models/AgentAction");
+jest.mock("../../../models/Schedule");
+jest.mock("../../../models/Ticket");
 
 import { runSecretaryLoop } from "../secretaryLoop";
 import { AIProviderFactory } from "../../AgentService/providers/AIProviderFactory";
 import * as tools from "../tools";
 import * as pending from "../pendingAction";
 import AgentAction from "../../../models/AgentAction";
+import Schedule from "../../../models/Schedule";
+import Ticket from "../../../models/Ticket";
 import { getSettingsByCompany } from "../../AgentService/settingsCache";
 
 const mockSettings = getSettingsByCompany as jest.Mock;
@@ -48,6 +52,8 @@ const mockChat = jest.fn();
 const mockExec = tools.executeSecretaryTool as jest.Mock;
 const mockSavePending = pending.savePendingAction as jest.Mock;
 const mockLoadPending = pending.loadPendingAction as jest.Mock;
+const mockScheduleFindOne = Schedule.findOne as jest.Mock;
+const mockTicketFindOne = Ticket.findOne as jest.Mock;
 
 const BASE = { companyId: 1, senderNumber: "5511999990001", userMessage: "oi" };
 
@@ -70,6 +76,10 @@ beforeEach(() => {
   // Reset settings para vazio por padrão (clearAllMocks não restaura a implementação
   // do factory); testes que precisam de business context sobrescrevem.
   mockSettings.mockResolvedValue([]);
+  // Por padrão o alvo de ações destrutivas EXISTE (Schedule/Ticket encontrados) —
+  // testes de ID inexistente sobrescrevem para retornar null.
+  mockScheduleFindOne.mockResolvedValue({ id: 1 });
+  mockTicketFindOne.mockResolvedValue({ id: 1 });
 });
 
 describe("runSecretaryLoop — auditoria (AgentActions)", () => {
@@ -211,6 +221,55 @@ describe("runSecretaryLoop — gate determinístico de ações destrutivas", () 
       1, "5511999990001",
       expect.objectContaining({ type: "confirm_tool", tool: "cancelar_agendamento" })
     );
+  });
+
+  it("valida o ID ANTES de estacionar: fechar_ticket #999 inexistente NÃO estaciona", async () => {
+    // Ticket não existe na empresa — o LLM alucinou o ID.
+    mockTicketFindOne.mockResolvedValueOnce(null);
+    mockChat
+      .mockResolvedValueOnce(toolResp({ id: "c1", name: "fechar_ticket", args: { ticketId: 999 } }))
+      // Após receber o erro como tool result, o LLM se corrige e responde ao admin.
+      .mockResolvedValueOnce(textResp("Não achei o atendimento #999. Pode confirmar o número?"));
+
+    const { reply } = await runSecretaryLoop({ ...BASE, userMessage: "fecha o atendimento 999" });
+
+    // NÃO estacionou a ação (ID inexistente).
+    expect(mockSavePending).not.toHaveBeenCalled();
+    // O tool result devolvido ao LLM traz o erro de "não encontrado".
+    const secondCallMessages = mockChat.mock.calls[1][0] as any[];
+    const toolMsg = secondCallMessages.find((m: any) => m.role === "tool");
+    expect(toolMsg).toBeDefined();
+    expect(toolMsg.content).toMatch(/não encontrado|nao encontrado/i);
+    // E o loop re-iterou (2 chamadas ao LLM) em vez de encerrar pedindo confirmação.
+    expect(mockChat.mock.calls.length).toBe(2);
+    expect(reply).toMatch(/999|confirmar/i);
+  });
+
+  it("valida o ID ANTES de estacionar: cancelar_agendamento #999 inexistente NÃO estaciona", async () => {
+    mockScheduleFindOne.mockResolvedValueOnce(null);
+    mockChat
+      .mockResolvedValueOnce(toolResp({ id: "c1", name: "cancelar_agendamento", args: { scheduleId: 999 } }))
+      .mockResolvedValueOnce(textResp("Não encontrei o agendamento #999."));
+
+    await runSecretaryLoop({ ...BASE, userMessage: "cancela o 999" });
+
+    expect(mockSavePending).not.toHaveBeenCalled();
+    const secondCallMessages = mockChat.mock.calls[1][0] as any[];
+    const toolMsg = secondCallMessages.find((m: any) => m.role === "tool");
+    expect(toolMsg.content).toMatch(/não encontrado|consultar_agendamentos/i);
+  });
+
+  it("quando o ID EXISTE, estaciona normalmente (caminho feliz preservado)", async () => {
+    mockTicketFindOne.mockResolvedValueOnce({ id: 42 });
+    mockChat.mockResolvedValueOnce(toolResp({ id: "c1", name: "fechar_ticket", args: { ticketId: 42 } }));
+
+    const { reply } = await runSecretaryLoop({ ...BASE, userMessage: "fecha o 42" });
+
+    expect(mockSavePending).toHaveBeenCalledWith(
+      1, "5511999990001",
+      expect.objectContaining({ type: "confirm_tool", tool: "fechar_ticket", args: { ticketId: 42 } })
+    );
+    expect(reply).toMatch(/confirme|#42/i);
   });
 
   it("ao admin confirmar ('sim'), o interceptor EXECUTA a ação estacionada e audita", async () => {

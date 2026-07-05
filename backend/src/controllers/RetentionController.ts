@@ -53,6 +53,8 @@ import {
   getReferralSummary
 } from "../services/RetentionService/ReferralService";
 import Referral from "../models/Referral";
+import ClientPackagePurchase from "../models/ClientPackagePurchase";
+import { hasActivePackage } from "../services/PackageService/PackageService.utils";
 import AppError from "../errors/AppError";
 
 // ── Tipos locais ───────────────────────────────────────────────────
@@ -77,6 +79,41 @@ function parseStatusFilter(statusParam?: string): DormantStatusType[] {
     "novo", "em_dia", "quase_na_hora", "atrasado", "adormecido", "perdido"
   ];
   return parts.filter(p => valid.includes(p));
+}
+
+/**
+ * Retorna o conjunto de contactIds que têm PELO MENOS UM pacote ativo na empresa.
+ *
+ * Guard de retenção (Tier 2): cliente com pacote ativo (comprou N sessões e ainda
+ * está consumindo) NÃO deve entrar na lista de adormecidos/perdidos — o
+ * ServiceHistory só registra receita na COMPRA (cash basis), então o algoritmo o
+ * vê "parado" e o classificaria como perdido, gerando winback/cupom desnecessário.
+ *
+ * Batch: carrega todas as compras da empresa de uma vez e agrupa por contato
+ * (evita N+1). O status ATIVO é derivado via `hasActivePackage` (não confia no
+ * campo `status` persistido, que pode estar desatualizado).
+ *
+ * @param companyId - Empresa (multi-tenant)
+ * @returns Set de contactIds com pacote ativo
+ */
+async function loadActivePackageContactIds(companyId: number): Promise<Set<number>> {
+  const purchases = await ClientPackagePurchase.findAll({
+    where: { companyId },
+    attributes: ["contactId", "sessionsUsed", "totalSessions", "expiresAt", "status"]
+  });
+
+  const byContact = new Map<number, any[]>();
+  for (const p of purchases) {
+    const list = byContact.get(p.contactId) ?? [];
+    list.push(p);
+    byContact.set(p.contactId, list);
+  }
+
+  const active = new Set<number>();
+  for (const [contactId, list] of byContact) {
+    if (hasActivePackage(list as any)) active.add(contactId);
+  }
+  return active;
 }
 
 // ── Controllers ──────────────────────────────────────────────────────
@@ -115,6 +152,11 @@ export const listDormant = async (
   }
 
   // 2. Classifica cada contato
+  //    Guard de pacote ativo (Tier 2): contatos com pacote ativo são excluídos da
+  //    lista de reativação — estão engajados (comprando/consumindo sessões) e o
+  //    cash basis do ServiceHistory os faria parecer "parados" indevidamente.
+  const activePackageContacts = await loadActivePackageContactIds(companyId);
+
   const classified: Array<{
     contactId: number;
     status: DormantStatusType;
@@ -124,6 +166,8 @@ export const listDormant = async (
   }> = [];
 
   for (const contactId of contactIds) {
+    if (activePackageContacts.has(contactId)) continue;
+
     const history = await listForContact({ contactId, companyId, limit: 50 });
     const result = classify(history);
 
@@ -196,9 +240,16 @@ export const getSummary = async (
 
   const contactIds: number[] = rows.map((r: any) => r.contactId).filter(Boolean);
 
+  // Guard de pacote ativo (Tier 2): mesma exclusão do listDormant — o sumário
+  // alimenta o mesmo painel "para reativar", então clientes com pacote ativo não
+  // devem inflar as contagens de atrasado/adormecido/perdido.
+  const activePackageContacts = await loadActivePackageContactIds(companyId);
+
   const classified: Array<{ status: DormantStatusType }> = [];
 
   for (const contactId of contactIds) {
+    if (activePackageContacts.has(contactId)) continue;
+
     const history = await listForContact({ contactId, companyId, limit: 50 });
     const result = classify(history);
     classified.push({ status: result.status });

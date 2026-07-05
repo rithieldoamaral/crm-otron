@@ -5,6 +5,8 @@
  */
 
 import AgentAction from "../../models/AgentAction";
+import Schedule from "../../models/Schedule";
+import Ticket from "../../models/Ticket";
 import { cacheLayer } from "../../libs/cache";
 import { logger } from "../../utils/logger";
 import { getSettingsByCompany, getGlobalSettings } from "../AgentService/settingsCache";
@@ -76,6 +78,82 @@ function describePendingTool(tool: string, args: Record<string, unknown>): strin
     default:
       return `executar ${tool}`;
   }
+}
+
+/**
+ * Resultado da validação de existência do alvo de uma ação destrutiva.
+ * `ok:false` traz uma mensagem de erro pronta para devolver ao LLM como tool
+ * result — assim ele corrige o ID (ou pergunta ao admin) em vez de estacionar
+ * uma confirmação para algo que não existe.
+ */
+interface TargetCheck {
+  ok: boolean;
+  erro?: string;
+}
+
+/**
+ * Valida DETERMINISTICAMENTE que o ID referenciado por uma ação destrutiva existe
+ * na empresa ANTES de estacionar a confirmação.
+ *
+ * Motivo (Tier 2): o gate destrutivo estaciona a ação e pergunta "confirme: CANCELAR
+ * agendamento #999" sem checar se o #999 existe. Se o LLM alucinar um ID, o admin
+ * recebe um pedido de confirmação para um registro inexistente e, ao responder "sim",
+ * o interceptor executa a tool que só então retorna "não encontrado" — UX ruim e ruído.
+ * Validando aqui, um ID inválido volta ao LLM como erro e ele se corrige no mesmo turno.
+ *
+ * Cobre os alvos com ID simples e checável:
+ *   - scheduleId → Schedule (cancelar/reagendar_agendamento)
+ *   - ticketId   → Ticket   (fechar/reabrir/transferir_ticket)
+ *
+ * NÃO cobre `enviar_mensagem_para_cliente`: seu destino pode ser um contactId sem
+ * ticket aberto (o sistema abre um) — não há um único ID "existente/inexistente"
+ * simples de validar aqui, então retornamos ok:true e deixamos a própria tool tratar.
+ *
+ * @param tool      - Nome da tool destrutiva
+ * @param args      - Argumentos da tool (podem conter IDs alucinados pelo LLM)
+ * @param companyId - Empresa (multi-tenant) — o ID deve existir DENTRO dela
+ * @returns { ok: true } se existe (ou não é checável); { ok: false, erro } caso contrário
+ */
+async function checkDestructiveTargetExists(
+  tool: string,
+  args: Record<string, unknown>,
+  companyId: number
+): Promise<TargetCheck> {
+  const a = args as any;
+
+  if (tool === "cancelar_agendamento" || tool === "reagendar_agendamento") {
+    const scheduleId = typeof a.scheduleId === "number" ? a.scheduleId : Number(a.scheduleId);
+    if (!Number.isInteger(scheduleId) || scheduleId <= 0) {
+      return { ok: false, erro: `scheduleId inválido ("${a.scheduleId}"). Use consultar_agendamentos para obter o ID correto.` };
+    }
+    const schedule = await Schedule.findOne({ where: { id: scheduleId, companyId } });
+    if (!schedule) {
+      return {
+        ok: false,
+        erro: `Agendamento #${scheduleId} não encontrado. Verifique o ID via consultar_agendamentos antes de tentar novamente.`
+      };
+    }
+    return { ok: true };
+  }
+
+  if (tool === "fechar_ticket" || tool === "reabrir_ticket" || tool === "transferir_ticket") {
+    const ticketId = typeof a.ticketId === "number" ? a.ticketId : Number(a.ticketId);
+    if (!Number.isInteger(ticketId) || ticketId <= 0) {
+      return { ok: false, erro: `ticketId inválido ("${a.ticketId}"). Use consultar_atendimentos ou buscar_ticket para obter o ID correto.` };
+    }
+    const ticket = await Ticket.findOne({ where: { id: ticketId, companyId } });
+    if (!ticket) {
+      return {
+        ok: false,
+        erro: `Atendimento #${ticketId} não encontrado. Verifique o ID via consultar_atendimentos ou buscar_ticket antes de tentar novamente.`
+      };
+    }
+    return { ok: true };
+  }
+
+  // Tool destrutiva sem ID simples de validar (ex: enviar_mensagem_para_cliente) —
+  // a própria tool valida seu destino no momento da execução.
+  return { ok: true };
 }
 
 /**
@@ -465,6 +543,46 @@ export async function runSecretaryLoop(input: SecretaryLoopInput): Promise<Secre
     // tool_calls órfãos no contexto persistido (quebraria a próxima request).
     const destrutiva = (effectiveToolCalls as AIToolCall[]).find(tc => DESTRUCTIVE_TOOLS.has(tc.name));
     if (destrutiva) {
+      // Validação determinística do ALVO antes de estacionar (Tier 2): se o LLM
+      // alucinou um ID inexistente (ex: cancelar_agendamento #999 que não existe),
+      // NÃO estacionamos — devolvemos o erro como tool result para o LLM corrigir/
+      // perguntar ao admin no mesmo turno, em vez de pedir "confirme #999" e só
+      // descobrir a inexistência DEPOIS do "sim". Empurramos o assistant+toolCalls
+      // e o tool result juntos (contexto válido) e re-iteramos.
+      const targetCheck = await checkDestructiveTargetExists(
+        destrutiva.name,
+        destrutiva.arguments as Record<string, unknown>,
+        companyId
+      );
+      if (!targetCheck.ok) {
+        const checkErro = (targetCheck as TargetCheck).erro;
+        logger.warn(
+          `[SecretaryService] ação destrutiva com alvo inexistente — NÃO estacionada | ` +
+          `company=${companyId} tool=${destrutiva.name} args=${JSON.stringify(destrutiva.arguments)}: ${checkErro}`
+        );
+        messages.push({
+          role: "assistant",
+          content: effectiveContent ?? "",
+          toolCalls: effectiveToolCalls as AIToolCall[]
+        });
+        // Um tool result POR tool_call para manter o contexto consistente. O alvo
+        // destrutivo recebe o erro; eventuais outras tools do mesmo turno recebem
+        // um aviso neutro (o gate impede a execução de qualquer tool deste turno).
+        for (const tc of effectiveToolCalls as AIToolCall[]) {
+          const erroTc =
+            tc.id === destrutiva.id
+              ? checkErro
+              : "Ação não executada: outra ação destrutiva neste turno referenciou um ID inexistente.";
+          messages.push({
+            role: "tool",
+            content: neutralizeInjectionMarkers(JSON.stringify({ erro: erroTc })),
+            toolCallId: tc.id,
+            name: tc.name
+          });
+        }
+        continue; // re-itera: o LLM corrige o ID ou pergunta ao admin
+      }
+
       const descricao = describePendingTool(destrutiva.name, destrutiva.arguments as Record<string, unknown>);
       await savePendingAction(companyId, senderNumber, {
         type: "confirm_tool",

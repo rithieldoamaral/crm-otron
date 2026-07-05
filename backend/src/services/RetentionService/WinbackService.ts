@@ -30,6 +30,8 @@ import Contact from "../../models/Contact";
 import Setting from "../../models/Setting";
 import Company from "../../models/Company";
 import WinbackAttempt from "../../models/WinbackAttempt";
+import ClientPackagePurchase from "../../models/ClientPackagePurchase";
+import { hasActivePackage } from "../PackageService/PackageService.utils";
 import { Op } from "sequelize";
 import { logger } from "../../utils/logger";
 import SendWhatsAppMessage from "../WbotServices/SendWhatsAppMessage";
@@ -127,6 +129,24 @@ async function processContact(
 
   // Filtro rápido: só processa status alvo
   if (!WINBACK_STATUSES.includes(classification.status)) return false;
+
+  // Guard de pacote ativo (Tier 2): cliente que comprou um pacote e ainda tem
+  // sessões (ex: 10 sessões, consumindo aos poucos) NÃO é adormecido/perdido de
+  // verdade — o ServiceHistory só registra a receita na COMPRA (cash basis), não
+  // nos consumos, então o algoritmo RFM-lite o vê "parado" e o marca perdido.
+  // Disparar winback com desconto aqui é desnecessário e faz o cliente engajado
+  // receber cupom que não precisa. Excluímos quem tem pacote ativo.
+  const purchases = await ClientPackagePurchase.findAll({
+    where: { contactId: contact.id, companyId },
+    attributes: ["sessionsUsed", "totalSessions", "expiresAt", "status"]
+  });
+  if (hasActivePackage(purchases as any)) {
+    logger.info(
+      `[Winback] Contato ${contact.id} tem pacote ativo — winback ignorado ` +
+      `(status retenção: ${classification.status})`
+    );
+    return false;
+  }
 
   // Busca última tentativa
   const lastAttempt = await WinbackAttempt.findOne({
