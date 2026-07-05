@@ -500,7 +500,7 @@ ${JSON.stringify(msg)}`);
   } catch (error) {
     Sentry.setExtra("Error getTypeMessage", { msg, BodyMsg: msg.message });
     Sentry.captureException(error);
-    console.log(error);
+    logger.error({ err: error }, "Error getTypeMessage");
   }
 };
 
@@ -551,7 +551,7 @@ const getSenderMessage = (
   if (msg.key.fromMe) return me.id;
 
   const senderId = msg.participant || msg.key.participant || msg.key.remoteJid || undefined;
-  console.log('senderId:::::', senderId)
+  logger.debug({ senderId }, "getSenderMessage senderId");
 
   return senderId && jidNormalizedUser(senderId);
 };
@@ -572,9 +572,7 @@ const getContactMessage = async (msg: proto.IWebMessageInfo, wbot: Session) => {
     const rawNumber = jid.replace(/\D/g, "");
 
     // Log para debug (pode ser removido em produção)
-    console.log('DEBUG - jid:', jid);
-    console.log('DEBUG - lid:', lid);
-    console.log('DEBUG - isGroup:', isGroup);
+    logger.debug({ jid, lid, isGroup }, "getContactMessage DEBUG");
 
     if (isGroup) {
       // Para grupos, usar getSenderMessage que já está validado
@@ -611,7 +609,7 @@ const downloadMedia = async (msg: proto.IWebMessageInfo) => {
   } catch (err) {
 
 
-    console.error('Erro ao baixar mídia:', err);
+    logger.error({ err }, "Erro ao baixar mídia");
 
     // Trate o erro de acordo com as suas necessidades
   }
@@ -629,7 +627,7 @@ const downloadMedia = async (msg: proto.IWebMessageInfo) => {
     msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.videoMessage;
 
   if (!mineType)
-    console.log(msg)
+    logger.debug({ msg }, "getBodyMessage: mineType ausente");
 
   if (!filename) {
     // IMPORTANTE: Verificar se o mimetype é image/gif para garantir extensão correta
@@ -758,7 +756,7 @@ const verifyContact = async (
     whatsappId: wbot.id,
     pushName: msgContact?.name // Passar o pushName para atualização
   };
-  console.log('contactData:::::', contactData);
+  logger.debug({ contactData }, "verifyContact contactData");
 
   const contact = CreateOrUpdateContactService(contactData);
 
@@ -816,7 +814,7 @@ const convertTextToSpeechAndSaveToFile = (
               resolve();
             })
             .catch(error => {
-              console.error(error);
+              logger.error({ err: error }, "Erro no sintetizador de voz");
               reject(error);
             });
         } else {
@@ -825,7 +823,7 @@ const convertTextToSpeechAndSaveToFile = (
         synthesizer.close();
       },
       error => {
-        console.error(`Error: ${error}`);
+        logger.error({ err: error }, "Erro no sintetizador de voz");
         synthesizer.close();
         reject(error);
       }
@@ -854,7 +852,7 @@ const deleteFileSync = (path: string): void => {
   try {
     fs.unlinkSync(path);
   } catch (error) {
-    console.error("Erro ao deletar o arquivo:", error);
+    logger.error({ err: error }, "Erro ao deletar o arquivo");
   }
 };
 
@@ -981,7 +979,7 @@ const handleOpenAi = async (
           deleteFileSync(`${publicFolder}/${fileNameWithOutExtension}.mp3`);
           deleteFileSync(`${publicFolder}/${fileNameWithOutExtension}.wav`);
         } catch (error) {
-          console.log(`Erro para responder com audio: ${error}`);
+          logger.error({ err: error }, "Erro para responder com audio");
         }
       });
     }
@@ -1046,7 +1044,7 @@ const handleOpenAi = async (
           deleteFileSync(`${publicFolder}/${fileNameWithOutExtension}.mp3`);
           deleteFileSync(`${publicFolder}/${fileNameWithOutExtension}.wav`);
         } catch (error) {
-          console.log(`Erro para responder com audio: ${error}`);
+          logger.error({ err: error }, "Erro para responder com audio");
         }
       });
     }
@@ -1332,7 +1330,7 @@ const verifyMediaMessage = async (
   
   // Log para debug
   if (isGif || baileysMsgType === 'videoMessage' || baileysMsgType === 'imageMessage') {
-    console.log("DEBUG GIF - verifyMediaMessage:", {
+    logger.debug({
       baileysMsgType,
       videoMsgMimetype: videoMsg?.mimetype,
       imageMsgMimetype: imageMsg?.mimetype,
@@ -1342,7 +1340,7 @@ const verifyMediaMessage = async (
       isGifByPlayback,
       isGif,
       mediaFilename
-    });
+    }, "DEBUG GIF - verifyMediaMessage");
   }
   
   let mediaType: string;
@@ -1354,12 +1352,12 @@ const verifyMediaMessage = async (
     // O arquivo já foi salvo como .mp4, mas vamos tratar como GIF no sistema
     if (isGifByPlayback && !isGifByMimetype) {
       // Não alterar o mimetype do media, apenas o mediaType
-      console.log("DEBUG GIF - GIF detectado por gifPlayback, mantendo mimetype video/mp4 mas mediaType=gif");
+      logger.debug("DEBUG GIF - GIF detectado por gifPlayback, mantendo mimetype video/mp4 mas mediaType=gif");
     } else if (media.mimetype !== "image/gif") {
       // Se foi detectado por mimetype, garantir que o mimetype esteja correto
       media.mimetype = "image/gif";
     }
-    console.log("DEBUG GIF - Definindo mediaType como 'gif'");
+    logger.debug("DEBUG GIF - Definindo mediaType como 'gif'");
   } else {
     // Se não é GIF, então normalizar mediaType baseado no tipo do Baileys
     mediaType = media.mimetype.split("/")[0];
@@ -1392,10 +1390,11 @@ const verifyMediaMessage = async (
 
   // Log final antes de salvar
   if (mediaType === "gif" || baileysMsgType === 'videoMessage' || baileysMsgType === 'imageMessage') {
-    console.log("DEBUG GIF - verifyMediaMessage: Salvando mensagem com mediaType:", mediaType, {
+    logger.debug({
+      mediaType,
       mediaFilename,
       mediaMimetype: media.mimetype
-    });
+    }, "DEBUG GIF - verifyMediaMessage: Salvando mensagem");
   }
 
   // Para stickers, incluir o path completo no mediaUrl para facilitar o carregamento no frontend
@@ -1406,12 +1405,12 @@ const verifyMediaMessage = async (
     if (!finalMediaUrl.startsWith('stickers/')) {
       finalMediaUrl = `stickers/${mediaFilename}`;
     }
-    console.log("DEBUG STICKER - verifyMediaMessage: mediaUrl ajustado:", {
+    logger.debug({
       original: mediaFilename,
       final: finalMediaUrl,
       mediaType,
       isStickerForFolder
-    });
+    }, "DEBUG STICKER - verifyMediaMessage: mediaUrl ajustado");
   }
 
   const messageData = {
@@ -1583,7 +1582,7 @@ export const verifyMessage = async (
   
   // Log para debug
   if (isGif || baileysMsgType === 'videoMessage' || baileysMsgType === 'imageMessage') {
-    console.log("DEBUG GIF - verifyMessage:", {
+    logger.debug({
       baileysMsgType,
       videoMsgMimetype: videoMsg?.mimetype,
       imageMsgMimetype: imageMsg?.mimetype,
@@ -1592,7 +1591,7 @@ export const verifyMessage = async (
       isGifByPlayback,
       isGif,
       fromMe: msg.key.fromMe
-    });
+    }, "DEBUG GIF - verifyMessage");
   }
   
   // Verificar se forceMediaType foi passado (para GIFs e Stickers enviados)
@@ -1607,7 +1606,7 @@ export const verifyMessage = async (
   // Prioridade 1: Verificar se é GIF (pelo mimetype ou forceMediaType ou filename)
   if (isGif || forceMediaType === "gif" || isGifByFilename) {
     mediaType = "gif";
-    console.log("DEBUG GIF - verifyMessage: Definindo mediaType como 'gif'");
+    logger.debug("DEBUG GIF - verifyMessage: Definindo mediaType como 'gif'");
   } else if (forceMediaType === "sticker") {
     mediaType = "sticker";
   } else {
@@ -1668,7 +1667,7 @@ export const verifyMessage = async (
       // Se for sticker e o mediaUrl não tiver o path stickers/, adicionar
       if (mediaType === 'sticker' && mediaUrl && !mediaUrl.startsWith('stickers/')) {
         mediaUrl = `stickers/${mediaUrl}`;
-        console.log("DEBUG STICKER - verifyMessage: Ajustando mediaUrl para incluir path:", mediaUrl);
+        logger.debug({ mediaUrl }, "DEBUG STICKER - verifyMessage: Ajustando mediaUrl para incluir path");
       }
     } else {
       // Tentar extrair do dataJson
@@ -1691,10 +1690,11 @@ export const verifyMessage = async (
 
   // Log final antes de salvar
   if (mediaType === "gif" || baileysMsgType === 'videoMessage' || baileysMsgType === 'imageMessage') {
-    console.log("DEBUG GIF - verifyMessage: Salvando mensagem com mediaType:", mediaType, {
+    logger.debug({
+      mediaType,
       mediaUrl,
       fromMe: msg.key.fromMe
-    });
+    }, "DEBUG GIF - verifyMessage: Salvando mensagem");
   }
 
   const messageData = {
@@ -2531,7 +2531,7 @@ const handleChartbot = async (ticket: Ticket, msg: proto.IWebMessageInfo, wbot: 
       }; //FOI REMOVIDO O ${queue.greetingMessage} COMO NO COMENTARIO ACIMA//
 
 
-      console.log('textMessage5555555555555', textMessage)
+      logger.debug({ textMessage }, "handleChartbot textMessage");
       const sendMsg = await wbot.sendMessage(
         `${ticket.contact.number}@${ticket.isGroup ? "g.us" : "s.whatsapp.net"}`,
         textMessage
@@ -3126,7 +3126,7 @@ const handleChartbot = async (ticket: Ticket, msg: proto.IWebMessageInfo, wbot: 
           text: formatBody(`\u200e${currentOption.message}\n\n${options}`, ticket.contact),
         };
 
-        console.log('textMessage6666666666', textMessage)
+        logger.debug({ textMessage }, "handleChartbot textMessage");
         const sendMsg = await wbot.sendMessage(
           `${ticket.contact.number}@${ticket.isGroup ? "g.us" : "s.whatsapp.net"}`,
           textMessage
@@ -3189,7 +3189,7 @@ export const handleMessageIntegration = async (
             throw new Error(error);
           }
           else {
-            console.log(response.body);
+            logger.debug({ body: response.body }, "dialogflow response");
           }
         });
       } catch (error) {
@@ -3198,7 +3198,7 @@ export const handleMessageIntegration = async (
     }
 
   } else if (queueIntegration.type === "typebot") {
-    console.log("entrou no typebot")
+    logger.debug("entrou no typebot");
     // await typebots(ticket, msg, wbot, queueIntegration);
     await typebotListener({ ticket, msg, wbot, typebot: queueIntegration });
 
@@ -3258,7 +3258,7 @@ const handleMessage = async (
     }
 
     msgContact = await getContactMessage(msg, wbot);
-    console.log('msgContact:::', msgContact)
+    logger.debug({ msgContact }, "handleMessage msgContact");
 
     if (msgIsGroupBlock?.value === "enabled" && isGroup) return;
 
@@ -3280,8 +3280,7 @@ const handleMessage = async (
     }
 
     const whatsapp = await ShowWhatsAppService(wbot.id!, companyId);
-    console.log('msgContact2:::', msgContact)
-    console.log('groupContact:::', groupContact)
+    logger.debug({ msgContact, groupContact }, "handleMessage msgContact/groupContact");
     const contact = await verifyContact(msgContact, wbot, companyId);
     
     // Log para monitorar normalização
@@ -3691,7 +3690,7 @@ const handleMessage = async (
       }
     } catch (e) {
       Sentry.captureException(e);
-      console.log(e);
+      logger.error({ err: e }, "wbotMessageListener error");
     }
 	
 
@@ -3702,7 +3701,7 @@ const handleMessage = async (
       });
     } catch (e) {
       Sentry.captureException(e);
-      console.log(e);
+      logger.error({ err: e }, "wbotMessageListener error");
     }
 
     if (hasMedia) {
@@ -3736,7 +3735,7 @@ const handleMessage = async (
         ) {
           const body = formatBody(`\u200e${whatsapp.outOfHoursMessage}`, ticket.contact);
 
-          console.log('body9341023', body)
+          logger.debug({ body }, "outOfHours company body");
           const debouncedSentMessage = debounce(
             async () => {
               await wbot.sendMessage(
@@ -3754,7 +3753,7 @@ const handleMessage = async (
           return;
         }
 
-        console.log('MSG:', bodyMessage);
+        logger.debug({ bodyMessage }, "handleMessage MSG");
         if (scheduleType.value === "queue" && ticket.queueId !== null) {
 
           /**
@@ -3793,7 +3792,7 @@ const handleMessage = async (
 
             if (now.isBefore(startTimeA) || now.isAfter(endTimeA) && (now.isBefore(startTimeB) || now.isAfter(endTimeB))) {
 			  const body = queue.outOfHoursMessage;
-              console.log('body:23801', body)
+              logger.debug({ body }, "outOfHours queue body");
               const debouncedSentMessage = debounce(
                 async () => {
                   await wbot.sendMessage(
@@ -3816,7 +3815,7 @@ const handleMessage = async (
       }
     } catch (e) {
       Sentry.captureException(e);
-      console.log(e);
+      logger.error({ err: e }, "wbotMessageListener error");
     }
 
     //openai na conexao
@@ -3870,7 +3869,7 @@ const handleMessage = async (
       ticket.queue
     ) {
 
-      console.log("entrou no type 1974")
+      logger.debug("entrou no type 1974");
       const integrations = await ShowQueueIntegrationService(ticket.integrationId, companyId);
 
       await handleMessageIntegration(msg, wbot, integrations, ticket)
@@ -3936,7 +3935,7 @@ const handleMessage = async (
 
           if (now.isBefore(startTimeA) || now.isAfter(endTimeA) && (now.isBefore(startTimeB) || now.isAfter(endTimeB))) {
             const body = queue.outOfHoursMessage;
-            console.log('body158964153', body)
+            logger.debug({ body }, "outOfHours queue body");
             const debouncedSentMessage = debounce(
               async () => {
                 await wbot.sendMessage(
@@ -3957,7 +3956,7 @@ const handleMessage = async (
       }
     } catch (e) {
       Sentry.captureException(e);
-      console.log(e);
+      logger.error({ err: e }, "wbotMessageListener error");
     }
 
 
@@ -3977,7 +3976,7 @@ const handleMessage = async (
       }
 
       if (whatsapp.greetingMessage || whatsapp.greetingMediaPath) {
-        console.log('whatsapp.greetingMessage', whatsapp.greetingMessage)
+        logger.debug({ greetingMessage: whatsapp.greetingMessage }, "greetingMessage");
         const debouncedSentMessage = debounce(
           async () => {
             const hasMedia = whatsapp.greetingMediaPath && whatsapp.greetingMediaPath !== "";
@@ -4037,7 +4036,6 @@ const handleMessage = async (
     }
 
   } catch (err) {
-    console.log(err)
     Sentry.captureException(err);
     logger.error(`Error handling whatsapp message: Err: ${err}`);
   }
@@ -4270,7 +4268,7 @@ const wbotMessageListener = async (wbot: Session, companyId: number): Promise<vo
         const messages = messageUpsert.messages
           .filter(filterMessages)
           .map(msg => msg);
-        console.log('messages.upsert:::::', messages)
+        logger.debug({ count: messages.length }, "messages.upsert");
 
         if (!messages?.length) return;
 

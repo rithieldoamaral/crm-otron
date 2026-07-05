@@ -365,7 +365,7 @@ export async function criarEvento(
     googleEventId,
     status: "PENDENTE",
     reminderStatus: "pending"
-  } as any);
+  });
 
   const s = servico as any;
   const p = profissional as any;

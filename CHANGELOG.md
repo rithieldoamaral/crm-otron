@@ -7,6 +7,28 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Changed — Tier 4: cleanup/higiene sem mudança de comportamento (2026-07-05)
+
+**ITEM A — `console.log`/`console.error` de debug → `logger` (pino).** Em
+[wbotMessageListener.ts](backend/src/services/WbotServices/wbotMessageListener.ts),
+os blocos `DEBUG GIF`/`DEBUG STICKER` e diversos `console.log` de rastreio (`senderId`,
+`msgContact`, `body`, `textMessage`, `entrou no typebot`, `messages.upsert`, etc.) foram
+trocados por `logger.debug(...)`, e os `console.log(e)`/`console.error(...)` de catch
+(pareados com `Sentry.captureException`) por `logger.error({ err }, ...)`. Apenas o canal
+de log mudou — nenhuma informação removida, nenhum comportamento alterado. Linhas
+comentadas foram deixadas como estão.
+
+**ITEM B — `as any` desnecessário em `Model.create()` removido.** Removidos 3 casts
+`as any` que o TypeScript aceita sem eles (tsc limpo): `CalendarProfessional.create`
+([GoogleCalendarController.ts](backend/src/controllers/GoogleCalendarController.ts)),
+`SystemLog.create` ([dbLogger.ts](backend/src/services/SystemLogService/dbLogger.ts)) e
+`Schedule.create` ([criarEvento.ts](backend/src/services/GoogleCalendarService/tools/criarEvento.ts)).
+Os `as any` restantes em `.create()` (RetentionService/secretaryLoop) foram deixados
+intactos por pertencerem a código de tiers anteriores (fora do escopo de cleanup seguro).
+
+`tsc --noEmit` limpo. Testes rodados: `wbotClosedTickets`, `criarEvento` (tools + service)
+— 29 testes, todos passando.
+
 ### Performance — Tier 3: escala/performance de mensagens, calendário e retenção (2026-07-05)
 
 **ITEM A — `Message.count` por-mensagem eliminado.** `handleMessage`

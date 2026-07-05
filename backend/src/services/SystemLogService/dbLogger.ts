@@ -57,7 +57,7 @@ export function dbLog(payload: LogPayload): void {
     entityId: payload.entityId ?? null,
     details: payload.details ?? null,
     ip
-  } as any).catch((err: unknown) => {
+  }).catch((err: unknown) => {
     // Não relança — log de auditoria nunca deve derrubar operação de negócio
     console.error("[dbLogger] Falha ao gravar SystemLog:", err);
   });

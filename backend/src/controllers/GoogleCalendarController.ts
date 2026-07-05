@@ -418,7 +418,7 @@ export const createProfessional = async (req: Request, res: Response): Promise<R
     throw new AppError(err.errors?.join("; ") ?? err.message, 400);
   }
   const { name } = req.body as { name: string };
-  const professional = await CalendarProfessional.create({ name, companyId } as any);
+  const professional = await CalendarProfessional.create({ name, companyId });
   return res.status(201).json(professional);
 };
 
