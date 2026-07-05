@@ -1,6 +1,6 @@
 # 🚀 Deploy do CRM Otron na Contabo VPS via Docker
 
-> **Tempo estimado:** 60-90 minutos (primeira vez)
+> **Tempo estimado:** 75-100 minutos (primeira vez)
 > **Pré-requisitos:** uma VPS Contabo contratada, um domínio (ex: `seudominio.com.br`) e acesso ao painel de DNS desse domínio.
 
 Este guia leva você do zero (VPS recém-comprada) até o CRM Otron rodando em produção com:
@@ -27,7 +27,8 @@ Este guia leva você do zero (VPS recém-comprada) até o CRM Otron rodando em p
 | 7 | Configurar `.env.production` | 10 min |
 | 8 | Gerar certificados SSL | 10 min |
 | 9 | Subir os containers | 10 min |
-| 10 | Criar primeiro super admin | 5 min |
+| 10 | Criar primeiro super admin + migrations | 5 min |
+| 11 | Configurar Provedor de IA (super admin) e admin da Secretária | 5 min |
 
 ---
 
@@ -350,6 +351,33 @@ Faça login com o admin acima.
 2. Troque a senha para uma forte
 3. Troque também o e-mail
 
+### 10.4.1 — Configurar o Provedor de IA (super admin, OBRIGATÓRIO para usar qualquer IA)
+
+Desde a versão atual, a chave de API do LLM (Claude/GPT/Llama) e do Whisper (transcrição de áudio) **NÃO é mais por empresa** — é configurada **uma única vez pelo super admin** e vale para toda a plataforma.
+
+1. **CONFIGURAÇÕES → Configurações → aba "Integrações"** (só aparece para super admin)
+2. Preencha **Provedor de IA — Agente de Atendimento**: escolha o provedor (recomendado: Anthropic ou Groq), cole a API Key, selecione o modelo
+3. Preencha **Provedor de IA — Secretária IA**: pode ser o mesmo provedor ou um diferente
+4. (Opcional) Preencha **Whisper**: só necessário se quiser que a IA entenda mensagens de áudio
+5. Salve
+
+> Sem este passo, NENHUM agente de IA (Atendimento ou Secretária) funciona — eles vão responder com uma mensagem de erro genérica. Se você não pretende usar IA agora, pode pular e configurar depois.
+
+**Onde conseguir a API Key:**
+- **Anthropic (Claude):** [console.anthropic.com](https://console.anthropic.com) → API Keys → Create Key
+- **Groq (Llama, gratuito no tier inicial):** [console.groq.com](https://console.groq.com) → API Keys
+
+### 10.4.2 — Configurar quem é admin da Secretária IA (por empresa, OBRIGATÓRIO para usar a Secretária)
+
+A Secretária IA (a IA de gestão que só fala com você) reconhece o admin pelo **número de telefone**, não pelo canal. Sem este passo, ela nunca vai reconhecer ninguém como admin.
+
+1. Faça login como admin da empresa (não precisa ser super admin)
+2. **CONFIGURAÇÕES → Configurações → aba "Agente IA" → aba "Secretária IA"**
+3. No campo **"Números dos Admins"**, digite seu número **só com DDD + número**, sem `+55` (ex: `48988368758`). Pode adicionar mais de um separado por vírgula.
+4. Salve
+
+Teste: mande uma mensagem qualquer ("oi") pelo WhatsApp desse número para o número da sua empresa conectado no CRM. Se aparecer uma resposta da "Secretária IA" (e a conversa aparecer na aba **🎧 Secretária**, não em "Aguardando"/"Atendendo"), está funcionando.
+
 ### 10.5 — Configurar timezone da empresa (IMPORTANTE para Retenção)
 
 O Módulo de Retenção dispara mensagens em horários configurados pelo admin. Se o servidor está em UTC mas você configura "09:00" pensando em horário de Brasília, o sistema precisa saber o fuso para disparar no momento certo.
@@ -461,6 +489,27 @@ Em horário de janela configurado, deve aparecer `[BirthdayIntelligent] Empresa 
 # Deve aparecer 9 abas: Adormecidos, Aniversários, Preventivo, Fidelidade, Win-back, RFM, Cross-sell, Indicações, Cupons
 ```
 
+### 10.8 — Smoke test do Catálogo de Serviços
+
+1. Menu lateral → **CONFIGURAÇÕES → Catálogo de Serviços**
+2. Clique em **Novo Serviço** → preencha nome, categoria, preço (ex: R$ 40,00), duração
+3. Deve aparecer na lista com o preço formatado
+4. Teste pela IA: mande "Quais são os serviços e preços de vocês?" pelo número com Canal do Agente IA ativo — a resposta deve listar exatamente o que você cadastrou (não pode inventar outro serviço)
+
+### 10.9 — Smoke test de Pacotes de Sessões
+
+1. Menu lateral → **CONFIGURAÇÕES → Pacotes de Sessões**
+2. Clique em **Novo Pacote** → preencha nome, quantidade de sessões, preço total, serviço vinculado (opcional)
+3. Clique no ícone 🛒 (vender) → informe o ID de um contato de teste → deve confirmar "Pacote vendido com sucesso!"
+4. Teste pela IA: "Quais pacotes vocês têm?" e "Quantas sessões ainda tenho disponíveis?" devem responder com os dados reais
+
+### 10.10 — Smoke test da Secretária IA (ver também §10.4.2)
+
+1. Mande "oi" pelo seu WhatsApp cadastrado como admin
+2. Confirme que a resposta vem da Secretária (não do Agente de Atendimento) e a conversa aparece na aba 🎧 Secretária
+3. Teste um comando de consulta: "quantos atendimentos temos hoje?" ou "quanto faturamos este mês?"
+4. Teste um comando destrutivo (ex: se houver um ticket de teste, "feche o ticket #X") — a Secretária DEVE pedir confirmação ("responda sim ou não") antes de executar
+
 ---
 
 ## 🔄 Atualizar o sistema (quando sair nova versão)
@@ -552,17 +601,17 @@ nano .env.production
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d backend
 ```
 
-### 11.4 — Rotacionar API Keys das LLMs (Claude/OpenAI/Gemini)
+### 11.4 — Rotacionar API Keys das LLMs (Claude/Groq/OpenAI)
 
-Essas ficam no **banco** (não em `.env`), salvas pela tela **CONFIGURAÇÕES → Configurações → Agente IA**:
+⚠️ **Mudou:** a chave NÃO é mais por empresa — é uma configuração ÚNICA da plataforma, feita pelo **super admin**:
 
-1. Login como admin
-2. Vá em **CONFIGURAÇÕES → Configurações → aba "Agente IA"**
-3. Gere nova key no painel do provedor (Anthropic Console, OpenAI Platform, Google AI Studio)
-4. Cole a nova key
+1. Login como **super admin**
+2. Vá em **CONFIGURAÇÕES → Configurações → aba "Integrações"** (só super admin vê essa aba — ver `MANUAL_PLATAFORMA.md` §9.5)
+3. Gere nova key no painel do provedor (Anthropic Console, Groq Console, OpenAI Platform)
+4. Cole a nova key (tem um campo para o Agente de Atendimento e outro para a Secretária IA — se usam o mesmo provedor, atualize os dois)
 5. **Revogue a antiga** no painel do provedor
 
-Como cada empresa (tenant) tem sua própria key, repita para cada uma se for multi-empresa.
+Uma única rotação vale para **todas as empresas** da plataforma — não precisa repetir por tenant.
 
 ### 11.5 — Checklist pós-rotação
 
@@ -667,9 +716,10 @@ docker compose -f docker-compose.prod.yml down -v
 ## 🎯 Próximos passos
 
 Agora que está rodando:
-1. **Leia o `MANUAL_PLATAFORMA.md`** — explica o que cada aba faz
+1. **Leia o `MANUAL_PLATAFORMA.md`** — explica o que cada aba faz (comece pela seção 9, sobre os dois agentes de IA)
 2. **Configure sua primeira conexão WhatsApp** (Configurações → WhatsApp → Adicionar)
-3. **Configure o Agente IA** (Configurações → Configurações → Agente IA)
-4. **Customize logos e cores** (super admin → Configurações → Logos)
+3. Se ainda não fez, **configure o Provedor de IA** (§10.4.1) e **seu número como admin da Secretária** (§10.4.2)
+4. **Cadastre seus serviços reais** no Catálogo de Serviços (§10.8) — é o que a IA usa para responder preço
+5. **Customize logos e cores** (super admin → Configurações → Logos)
 
 Bom uso! 🎉

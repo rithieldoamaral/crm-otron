@@ -10,11 +10,11 @@
 2. [Primeira configuração após instalação](#2-primeira-configuração)
 3. [Sidebar — entendendo o menu lateral](#3-sidebar)
 4. [DIA A DIA — onde o atendimento acontece](#4-dia-a-dia)
-5. [GESTÃO — visão geral do negócio (inclui 💎 Retenção)](#5-gestão)
-6. [CONFIGURAÇÕES — como tudo é controlado](#6-configurações)
-7. [AVANÇADO — campanhas, financeiro e ferramentas](#7-avançado)
+5. [GESTÃO — visão geral do negócio (Financeiro, 💎 Retenção)](#5-gestão)
+6. [CONFIGURAÇÕES — Catálogo, Pacotes e mais](#6-configurações)
+7. [AVANÇADO — campanhas e ferramentas](#7-avançado)
 8. [SISTEMA — área do super administrador](#8-sistema)
-9. [🤖 Agente Secretária IA — o diferencial](#9-agente-secretária-ia)
+9. [🤖 IA: Agente de Atendimento + Secretária — o diferencial](#9-inteligência-artificial-dois-agentes-distintos)
 10. [💳 Pagamentos — Gerencianet, Mercado Pago, Asaas](#10-pagamentos)
 11. [📞 Como funciona um atendimento na prática](#11-como-funciona-um-atendimento)
 12. [👑 Super Admin — empresas, planos e cobranças](#12-super-admin)
@@ -110,33 +110,40 @@ O menu é dividido em 5 seções por contexto:
 ```
 ┌─────────────────────────────────────┐
 │ DIA A DIA          ← uso constante  │
-│ ├─ Atendimentos                     │
+│ ├─ Atendimentos (com aba 🎧 Secretária,
+│ │  visível só para admin)           │
 │ ├─ Contatos                         │
 │ ├─ Agendamentos                     │
 │ ├─ Kanban                           │
-│ └─ Tarefas                          │
+│ ├─ Tarefas                          │
+│ └─ Chat Interno                     │
 ├─────────────────────────────────────┤
 │ GESTÃO             ← visão gerencial│
 │ ├─ Dashboard                        │
 │ ├─ Relatórios                       │
+│ ├─ 📊 Financeiro (analytics)        │
 │ ├─ 💎 Retenção                      │
 │ └─ Etiquetas                        │
 ├─────────────────────────────────────┤
 │ CONFIGURAÇÕES      ← setup          │
 │ ├─ WhatsApp                         │
 │ ├─ Atendentes                       │
-│ ├─ Configurações                    │
-│ └─ Filas de atendimento             │
+│ ├─ Configurações (Agente IA,        │
+│ │  Integrações — aba Integrações    │
+│ │  só aparece p/ super admin)       │
+│ ├─ Filas de atendimento             │
+│ ├─ Catálogo de Serviços             │
+│ ├─ Pacotes de Sessões               │
+│ ├─ Treinamentos (biblioteca arquivos)│
+│ └─ Mensalidade do CRM (fatura SaaS) │
+├─────────────────────────────────────┤
+│ 📣 CAMPANHAS ▾     (3 passos)       │
+│ ├─ 1. Listas de Contatos            │
+│ ├─ 2. Config. Campanhas             │
+│ └─ 3. Campanhas (disparo)           │
 ├─────────────────────────────────────┤
 │ AVANÇADO ▾         ← uso eventual   │
-│ ├─ 📣 Campanhas (3 passos)          │
-│ │  ├─ 1. Listas de Contatos         │
-│ │  ├─ 2. Config. Campanhas          │
-│ │  └─ 3. Campanhas (disparo)        │
-│ ├─ Chat Interno                     │
-│ ├─ Arquivos                         │
 │ ├─ API                              │
-│ ├─ Financeiro                       │
 │ └─ Respostas Rápidas                │
 ├─────────────────────────────────────┤
 │ SISTEMA            ← super admin    │
@@ -145,6 +152,8 @@ O menu é dividido em 5 seções por contexto:
 │ └─ Logs de Auditoria                │
 └─────────────────────────────────────┘
 ```
+
+> **Nota:** a estrutura exata do menu pode variar por plano contratado (ex: Campanhas some se o plano não incluir) e por perfil (Atendente não vê GESTÃO/CONFIGURAÇÕES/AVANÇADO/SISTEMA). A aba **Integrações** (dentro de Configurações → Configurações) só é visível para quem é **super admin** — é lá que fica o Provedor de IA e o Whisper, que valem para TODA a plataforma (não é configuração por empresa).
 
 ### Atalho global: Cmd/Ctrl + K
 Pressione `Ctrl + K` em qualquer tela e abra o **Command Palette** — busque qualquer página por nome.
@@ -158,10 +167,11 @@ Pressione `Ctrl + K` em qualquer tela e abra o **Command Palette** — busque qu
 A tela principal. Aqui acontece toda a operação.
 
 **Estrutura da tela:**
-- **Coluna esquerda:** lista de atendimentos (chats) divididos em 3 abas:
+- **Coluna esquerda:** lista de atendimentos (chats) divididos em abas:
   - **Aguardando** (laranja): cliente mandou mensagem, ninguém atendeu ainda
   - **Atendendo** (verde): atendente já aceitou
   - **Resolvidos**: atendimentos fechados
+  - **🎧 Secretária** (só aparece para quem é **admin**): conversa PRIVADA entre você (dono/gestor) e a IA Secretária — completamente separada dos atendimentos de cliente. Veja a seção 9 para entender como ativar e usar.
 - **Coluna central:** conversa do chat selecionado (igual WhatsApp Web)
 - **Coluna direita (drawer):** dados do contato, observações, etiquetas
 
@@ -226,6 +236,12 @@ Crie colunas baseadas em etiquetas (ex: "Lead Frio", "Em Negociação", "Fechado
 
 Lista de afazeres do atendente. Simples to-do interno (não é tarefa de cliente).
 
+### 4.6 Chat Interno `/chats`
+
+Mensagens internas entre atendentes (tipo Slack/Teams). Não vai pro cliente.
+
+Útil para coordenar: "preciso de ajuda com este chat", "passa pra mim", etc.
+
 ---
 
 ## 5. GESTÃO
@@ -267,7 +283,24 @@ Duas abas:
 - Tickets ainda abertos
 - ⚠️ Alerta se está acima da meta de resposta
 
-### 5.3 Retenção `/retencao` 💎
+### 5.3 Financeiro `/finance` 📊
+
+Analytics de **receita do seu negócio** (não confundir com "Mensalidade do CRM" — aquela é a sua fatura do SaaS; esta aqui é quanto SEU negócio faturou).
+
+**De onde vem o dado:** toda vez que um serviço é concluído (Kanban com etiqueta "Venda Concluída", agendamento finalizado pela Secretária, pacote vendido, ou lançamento manual), o sistema registra em `ServiceHistory` com um valor — é isso que alimenta os gráficos aqui.
+
+**O que a tela mostra:**
+- **Resumo do período:** faturamento total, variação % vs. o período anterior de mesma duração
+- **Receita por dia:** gráfico de linha/barra
+- **Receita por dia da semana:** identifica qual dia costuma faturar mais (ex: sábado é seu melhor dia)
+- **Top clientes:** quem mais gastou no período
+- **Top serviços:** quais procedimentos geram mais receita
+
+**Filtros:** intervalo de datas customizável.
+
+> A Secretária IA também consulta esses mesmos dados por WhatsApp — veja a seção 9 ("ferramentas financeiras").
+
+### 5.4 Retenção `/retencao` 💎
 
 A central de fidelização e reativação de clientes. O sistema observa o histórico de cada cliente e automatiza mensagens, cupons e análises para você não perder ninguém.
 
@@ -366,8 +399,8 @@ Ao clicar em **Editar**, abre o modal com os campos:
 **Sempre visíveis:**
 - **Nome** — identificação interna
 - **Padrão** — toggle (se este é o WhatsApp principal)
-- **Canal do Agente IA** — toggle (se ativo, IA atende automaticamente — ver seção 9)
-- **Canal Secretária** — toggle (modo agente IA com tools de agendamento)
+- **Canal do Agente IA** — toggle (se ativo, o Agente de Atendimento responde clientes automaticamente neste número — ver seção 9)
+- **Canal Secretária** — toggle legado da versão antiga. **Não precisa marcar**: hoje a Secretária reconhece o admin pelo NÚMERO DE TELEFONE (§9.3), em qualquer canal, com ou sem este toggle marcado.
 - **Token** — usado para integrações API externas
 - **Chave PIX** — chave PIX para cobranças automáticas
 - **Mensagem Personalizada PIX** — texto enviado antes da chave
@@ -426,12 +459,19 @@ Configurações gerais da empresa. Várias abas:
 - Registro visível (mostra signup público)
 - Tempo de Trial (dias grátis para novas empresas — padrão 7)
 
-**Aba Agente IA** — ver seção 9 detalhada.
+**Aba Agente IA** — ver seção 9 detalhada. Só as abas "Personalidade", "Conhecimento", "Secretária IA" e "Sandbox" aparecem para admin normal — a aba "Provedor" (qual LLM usar) é reservada ao super admin (ver abaixo).
 
-**Aba Integrações:**
-- **ASAAS** — token API para integração Asaas
+**Aba Opções → integrações de pagamento:**
+- **ASAAS** — token API
+- **GERENCIANET/EFÍ** — Client ID, Client Secret, certificado .p12, chave PIX
 - **MERCADO PAGO** — public key + access token + webhook secret
-- **GEMINI AI** — token Google Gemini (gera sugestões automáticas)
+
+**Aba Integrações (visível SÓ para super admin):**
+- **Provedor de IA — Agente de Atendimento:** provedor (Anthropic/Groq/OpenRouter/OpenAI/MiniMax), API Key, modelo
+- **Provedor de IA — Secretária IA:** mesma coisa, pode ser um provedor/modelo DIFERENTE do agente de atendimento
+- **Whisper (transcrição de áudio):** provedor (OpenAI ou Groq), API Key, modelo
+
+> ⚠️ **Mudança importante:** desde a reorganização de GlobalSettings, a chave de API do LLM e do Whisper **NÃO é mais configurada por empresa** — é o **super admin** (você, dono da plataforma) quem configura uma vez aqui e vale para **todas as empresas** que usam o CRM. Isso simplifica o onboarding de novos clientes (eles não precisam ter conta própria na Anthropic/OpenAI) e centraliza o custo sob seu controle.
 
 ### 6.4 Filas de atendimento `/queues`
 
@@ -454,6 +494,52 @@ Departamentos do atendimento. Cada fila tem:
 **Aba Opções (sub-menu):**
 - Cria níveis do chatbot: "1. Vendas / 2. Suporte"
 - Tipos de opção: Texto, Atendente, Fila, API externa
+
+### 6.5 Catálogo de Serviços `/services`
+
+A lista OFICIAL dos serviços que seu negócio oferece — nome, categoria, preço e duração. É a **única fonte de verdade** que o Agente de Atendimento e a Secretária IA consultam (eles NUNCA inventam serviço ou preço — sempre perguntam ao catálogo real).
+
+**Por serviço:**
+- Nome, categoria (texto livre, ex: "Cabelo", "Estética")
+- Preço (opcional — se vazio, mostra "A combinar")
+- Duração (usada para calcular os horários disponíveis na agenda)
+- Profissionais vinculados (quem realiza esse serviço — usado na checagem de disponibilidade)
+- Ativo/Inativo (toggle — desativar não apaga, só some da lista para novos agendamentos)
+
+**Uso pela IA:** quando um cliente pergunta "quais serviços vocês têm?" ou "quanto custa X?", o agente chama a ferramenta `listar_servicos` e responde com os dados reais daqui — nunca com texto solto digitado em algum campo de configuração.
+
+### 6.6 Pacotes de Sessões `/packages`
+
+Venda de pacotes com múltiplas sessões (ex: "10 sessões de depilação a laser por R$ 300", em vez de pagar sessão avulsa).
+
+**Por pacote:**
+- Nome, quantidade total de sessões, preço total
+- Serviço vinculado (opcional) — para o sistema saber qual procedimento o pacote cobre
+- Validade em dias (a partir da venda)
+
+**Vender um pacote:**
+1. Clique no ícone 🛒 na linha do pacote
+2. Informe o contato (cliente)
+3. Confirma → o sistema registra a venda, envia mensagem de confirmação por WhatsApp e já soma a receita no Financeiro (§5.3)
+
+**Acompanhar consumo:** cada vez que o cliente usa uma sessão, o saldo diminui. Quando perto de acabar, o sistema pode alertar o cliente (saldo baixo).
+
+**Uso pela IA:** a Secretária/Agente consultam `listar_pacotes` (oferecer como vantagem) e `ver_saldo_pacote` (quando o cliente pergunta "quantas sessões ainda tenho?").
+
+### 6.7 Treinamentos `/files`
+
+Biblioteca de arquivos pré-cadastrados (catálogos, tabelas de preço, manuais). Cada lista tem uma mensagem associada — o atendente seleciona e dispara rapidamente no chat.
+
+### 6.8 Mensalidade do CRM `/financeiro`
+
+⚠️ **Não confundir com o Financeiro do §5.3** — esta tela é sobre **a fatura que VOCÊ paga pela plataforma** (o SaaS), não sobre a receita do seu negócio.
+
+**Estados:**
+- 🟢 Pago
+- 🔴 Vencido
+- 🟡 Em Aberto
+
+**Botão PAGAR:** abre tela de checkout com PIX gerado.
 
 ---
 
@@ -498,17 +584,9 @@ Disparo de mensagens em massa. **Siga a ordem:**
 **Status possíveis:**
 - Inativa, Programada, Em Andamento, Cancelada, Finalizada
 
-### 7.2 Chat Interno `/chats`
+> **Chat Interno, Treinamentos (antigo "Arquivos") e Mensalidade do CRM (antigo "Financeiro")** foram reorganizados no menu — veja §4.6, §6.7 e §6.8 respectivamente.
 
-Mensagens internas entre atendentes (chat tipo Slack/Teams). Não vai pro cliente.
-
-Útil para coordenar: "preciso de ajuda com este chat", "passa pra mim", etc.
-
-### 7.3 Arquivos `/files`
-
-Bibliotecas de arquivos pré-cadastrados (catálogos, tabelas de preço, manuais). Cada lista tem uma mensagem associada — o atendente seleciona e dispara rapidamente.
-
-### 7.4 API `/messages-api`
+### 7.2 API `/messages-api`
 
 Documentação técnica + testador para integrações externas (n8n, Zapier, sistemas próprios).
 
@@ -518,18 +596,7 @@ Documentação técnica + testador para integrações externas (n8n, Zapier, sis
 
 **Autenticação:** Bearer token (peguei em **CONFIGURAÇÕES → WhatsApp → editar conexão → Token**).
 
-### 7.5 Financeiro `/financeiro`
-
-Faturas geradas pela cobrança automática do plano.
-
-**Estados:**
-- 🟢 Pago
-- 🔴 Vencido
-- 🟡 Em Aberto
-
-**Botão PAGAR:** abre tela de checkout com PIX gerado.
-
-### 7.6 Respostas Rápidas `/quick-messages`
+### 7.3 Respostas Rápidas `/quick-messages`
 
 Atalhos de texto. Crie atalho `/preco` e ele expande para "Nossos preços são: ...".
 
@@ -583,91 +650,95 @@ Importante para conformidade LGPD e investigação de incidentes.
 
 ---
 
-## 9. 🤖 Agente Secretária IA
+## 9. 🤖 Inteligência Artificial: DOIS agentes distintos
 
-O grande diferencial. Substitui a recepcionista 24/7.
+O CRM Otron tem **duas IAs com papéis completamente diferentes**. Não confunda uma com a outra:
 
-### 9.1 Conceito
+| | **Agente de Atendimento** | **Secretária IA** |
+|---|---|---|
+| **Para quem fala** | Seus CLIENTES (público externo) | Só você / seus admins (uso interno) |
+| **Canal** | Número(s) marcados como "Canal do Agente IA" | Reconhece o admin pelo NÚMERO DE TELEFONE, em qualquer canal |
+| **Onde aparece a conversa** | Abas Aguardando/Atendendo, como qualquer atendimento | Aba dedicada **🎧 Secretária** (§4.1), separada dos clientes |
+| **O que faz** | Agenda, tira dúvida, vende serviço/pacote pro cliente | Consulta relatórios, financeiro, gerencia tickets/agendamentos, avisa clientes a seu pedido |
+| **Analogia** | Recepcionista que atende quem liga | Secretária pessoal só sua, que sabe tudo do negócio |
 
-A IA conversa com o cliente naturalmente e pode:
-- ✅ Responder dúvidas com base em conhecimento da empresa
-- ✅ Agendar compromissos no Google Calendar
-- ✅ Cancelar/reagendar compromissos existentes
+### 9.1 Agente de Atendimento — o que faz
+
+Conversa com o cliente naturalmente e pode:
+- ✅ Responder dúvidas com base no conhecimento configurado da empresa
+- ✅ Consultar o Catálogo de Serviços (§6.5) e Pacotes (§6.6) reais — nunca inventa preço
+- ✅ Agendar, cancelar e reagendar compromissos no Google Calendar
 - ✅ Consultar disponibilidade de horários
-- ✅ Confirmar agendamentos
+- ✅ Capturar a **data de aniversário** do cliente ao final de um atendimento concluído (para alimentar a campanha de aniversário do módulo de Retenção — §5.4)
 - ✅ Encaminhar para atendente humano quando necessário
 
-### 9.2 Onde configurar
+**Como ativar num número:** **CONFIGURAÇÕES → WhatsApp → editar conexão → marque "Canal do Agente IA"** → salve. Todas as mensagens recebidas nesse número passam a ser respondidas automaticamente.
 
-**CONFIGURAÇÕES → Configurações → aba "Agente IA"**
-
-### 9.3 Campos da configuração
-
-**Aba "Provedor & Modelo":**
-- **Provedor:** Anthropic (Claude), OpenAI (GPT), Google (Gemini)
-- **API Key:** chave da plataforma escolhida
-- **Modelo:** lista carregada automaticamente após inserir a key
-  - Recomendado: `claude-haiku-4-5` (rápido, barato) ou `claude-sonnet-4-5` (mais inteligente)
-- **Modelo de transcrição:** para áudios — Whisper / Deepgram
-- **Personalidade:** Formal / Casual / Híbrido (afeta temperatura do LLM)
-
-**Aba "Conhecimento":**
-- **Sobre a empresa:** descrição livre (nome, segmento, valores)
-- **Serviços oferecidos:** lista
-- **Política de atendimento:** horários, regras
-- **FAQ:** perguntas frequentes
-- **Tom de voz:** instruções específicas
-
-A IA usa tudo isso para responder com contexto correto.
-
-**Aba "Google Calendar":**
-- **Conectar conta Google** — OAuth (popup do Google)
-- Ao conectar, libera ferramentas: criar evento, cancelar, listar disponibilidade
-- Permissões: leitura/escrita do calendário principal
-
-**Aba "Templates":**
-- Mensagens padrão (saudação, despedida, transferência)
-- Variáveis suportadas: `{{nome}}`, `{{empresa}}`, `{{horario}}`
-
-**Aba "Avançado":**
-- **Tempo de "digitando..."** — humaniza a resposta (1-5 segundos)
-- **Histórico máximo** — quantas mensagens a IA lembra (padrão 20)
-- **Encaminhar para humano** — palavras-chave que ativam transferência (ex: "atendente", "humano", "falar com pessoa")
-
-**Aba "Sandbox":**
-- 💬 Chat de teste com a IA SEM disparar mensagem real no WhatsApp
-- Use para testar o prompt antes de ativar em produção
-- Histórico isolado por sessão
-
-### 9.4 Como ativar a IA num número
-
-1. **CONFIGURAÇÕES → WhatsApp → editar conexão**
-2. Marque **Canal Secretária** (ou **Canal do Agente IA**)
-3. Salve
-
-Pronto: todas as mensagens recebidas nesse número são respondidas pela IA automaticamente.
-
-### 9.5 Quando a IA passa para humano
-
-A IA encaminha quando:
+**Quando passa para humano:**
 - Cliente usa palavra-chave configurada ("atendente", "humano")
 - Cliente expressa raiva/insatisfação clara
 - Pergunta foge muito do conhecimento configurado
-- Cliente solicita algo financeiro complexo
+- Uma ferramenta falha e não há alternativa
 
-Ao encaminhar, o ticket entra na fila como **Aguardando** com etiqueta "IA→Humano".
+Ao encaminhar, o ticket entra na fila como **Aguardando**.
 
-### 9.6 Custos esperados (referência maio/2026)
+### 9.2 Secretária IA — o que faz
 
-| Provedor | Modelo | Custo aprox. por atendimento |
+É a SUA secretária pessoal por WhatsApp. Enquanto o Agente de Atendimento fala com clientes, a Secretária fala **só com você** (ou outros admins autorizados) e ajuda a **gerenciar** o negócio:
+
+- ✅ **Consultar contatos** — encontra qualquer cliente do CRM por nome/número (mesmo sem atendimento aberto) e pode desambiguar ("encontrei 3 Amandas, qual delas?")
+- ✅ **Avisar um cliente** — "avise a Maria que o horário de amanhã foi confirmado" → a Secretária localiza o contato, confirma com você antes de enviar, e manda a mensagem em seu nome
+- ✅ **Financeiro** — "quanto faturamos esse mês?", "quais os top clientes?", "qual dia mais lucrativo?", "compare março com abril" — mesmos dados do §5.3
+- ✅ **Gerenciar tickets** — consultar, fechar, reabrir, transferir atendimentos
+- ✅ **Gerenciar agendamentos** — consultar, cancelar, reagendar
+- ✅ **Relatório de desempenho** dos atendentes
+
+**Ações que MEXEM em algo** (cancelar agendamento, fechar ticket, enviar mensagem a cliente, etc.) **sempre pedem sua confirmação explícita** ("Confirme: CANCELAR o agendamento #42 — responda *sim* ou *não*") antes de executar. A Secretária nunca age sozinha em algo irreversível.
+
+### 9.3 Como a Secretária reconhece você (IMPORTANTE)
+
+Diferente do Agente de Atendimento (que é ativado por CANAL/número), a Secretária reconhece você pelo **seu número de telefone pessoal**, configurado em:
+
+**CONFIGURAÇÕES → Configurações → aba "Agente IA" → aba "Secretária IA" → campo "Números dos Admins"**
+
+- Digite **apenas DDD + número** (ex: `48988368758`) — **não** precisa colocar `+55` nem `+`, o código do país é adicionado automaticamente
+- Pode cadastrar vários admins, separados por vírgula
+- Isso funciona **em qualquer canal WhatsApp** conectado na plataforma — mesmo que seu negócio tenha só **1 número só** (que atende clientes E você usa para falar com a Secretária), o sistema reconhece pela sua identidade, não pelo canal
+
+**Como usar:** mande uma mensagem normal pelo seu WhatsApp pessoal para o número do seu negócio (o mesmo que os clientes usam, ou um dedicado — funciona dos dois jeitos). Se seu número estiver na lista de admins, você cai automaticamente na Secretária, não no Agente de Atendimento.
+
+### 9.4 Onde configurar (Agente de Atendimento)
+
+**CONFIGURAÇÕES → Configurações → aba "Agente IA"**
+
+- **Aba "Personalidade":** nome do agente, personalidade (Atencioso/Vendedor/Híbrido), tom de voz customizado
+- **Aba "Conhecimento":** sobre a empresa, horário de atendimento, FAQ, instruções especiais, restrições — a IA usa isso para responder com contexto correto (inclusive a Secretária herda o nome do negócio e o horário para se apresentar corretamente)
+- **Aba "Secretária IA":** números dos admins (§9.3), alerta de espera, alerta de erro do agente, horário do briefing matinal, meta de tempo de resposta
+- **Aba "Sandbox":** chat de teste com a IA SEM disparar mensagem real no WhatsApp — use para validar o prompt antes de ativar em produção
+
+> Os **serviços e preços** NÃO são mais configurados em texto livre aqui — eles vêm do Catálogo de Serviços real (§6.5), evitando que a IA "invente" um serviço que não existe.
+
+### 9.5 Provedor de IA e Whisper — agora é configuração da PLATAFORMA, não da empresa
+
+Isto mudou: **você (super admin) configura uma única vez** qual LLM e qual serviço de transcrição de áudio (Whisper) a plataforma inteira usa — em **CONFIGURAÇÕES → Configurações → aba "Integrações"** (só super admin vê essa aba).
+
+- **Provedor de IA — Agente de Atendimento:** Anthropic (Claude) / Groq (Llama) / OpenRouter / OpenAI (GPT) / MiniMax + API Key + modelo
+- **Provedor de IA — Secretária IA:** pode usar um provedor/modelo DIFERENTE (ex: um modelo mais potente para análises financeiras, um mais rápido/barato para atendimento)
+- **Whisper (transcrição de áudio):** OpenAI Whisper ou Groq Whisper
+
+**Por que centralizado:** cada empresa-cliente sua não precisa ter conta própria em nenhum provedor de IA — você absorve esse custo e controle. Se um dia quiser permitir que uma empresa específica use sua PRÓPRIA chave, isso ainda é possível via configuração avançada por empresa (fallback), mas não é o caminho padrão.
+
+### 9.6 Custos esperados (referência)
+
+| Provedor | Modelo | Perfil de custo |
 |---|---|---|
-| Anthropic | Claude Haiku 4.5 | R$ 0,02-0,05 |
-| Anthropic | Claude Sonnet 4.5 | R$ 0,15-0,30 |
-| OpenAI | GPT-4o-mini | R$ 0,03-0,08 |
-| OpenAI | GPT-4o | R$ 0,20-0,40 |
-| Google | Gemini 2.0 Flash | R$ 0,01-0,03 |
+| Anthropic | Claude Haiku 4.5 | Rápido e econômico — bom para Agente de Atendimento |
+| Anthropic | Claude Sonnet 4.6 | Equilibrado — recomendado para Secretária (análises) |
+| Anthropic | Claude Opus 4.7 | Mais poderoso, mais caro |
+| Groq | Llama 3.3 70B | Muito barato, boa qualidade de tool-calling |
+| OpenAI | GPT-4o-mini | Alternativa econômica |
 
-Um atendimento médio gasta 5-15 turnos de conversa. Para 1000 atendimentos/mês com Claude Haiku: ~R$ 30-50/mês de custo de API.
+Um atendimento médio gasta 5-15 turnos de conversa. Monitore o gasto real no painel do provedor escolhido (Anthropic Console, OpenAI Platform, etc.) — os primeiros dias de uso servem de referência para o restante do mês.
 
 ---
 
@@ -756,23 +827,40 @@ Cliente responde 1-5 → registrado em UserRating
 Ticket vai para "Resolvidos"
 ```
 
-**Fluxo com IA:**
+**Fluxo com o Agente de Atendimento (cliente):**
 
 ```
 Cliente manda mensagem
     ↓
-Sistema cria Ticket → conexão marcada como "Canal Secretária"
+Sistema cria Ticket → conexão marcada como "Canal do Agente IA"
     ↓
 Ticket vai direto para a fila Bull/Redis (assíncrono)
     ↓
-IA recebe → consulta knowledge base + Google Calendar
+IA recebe → consulta Catálogo de Serviços/Pacotes + Google Calendar
     ↓
 IA responde naturalmente (com "digitando..." 1-5s)
     ↓
 Loop continua até:
-  • Cliente fica satisfeito → IA não recebe mais mensagens (ticket fica aberto e fecha por inatividade)
+  • Cliente fica satisfeito → ao concluir, IA pode capturar aniversário (§9.1)
   • Cliente pede humano → ticket vai para fila como "Aguardando"
   • IA cria/cancela evento no Calendar
+```
+
+**Fluxo com a Secretária IA (admin — completamente diferente):**
+
+```
+VOCÊ (admin) manda mensagem pelo seu WhatsApp pessoal
+    ↓
+Sistema reconhece seu número (§9.3) — NÃO importa o canal/conexão
+    ↓
+Mensagem vai para o ticket dedicado 🎧 Secretária (nunca mistura com clientes)
+    ↓
+Secretária consulta tools de gestão (contatos, financeiro, agendamentos, tickets)
+    ↓
+Se a ação MEXE em algo (cancelar, fechar, enviar mensagem a cliente):
+  pede sua confirmação ("responda sim ou não") ANTES de executar
+    ↓
+Responde com o resultado
 ```
 
 **Recursos do atendente durante a conversa:**
@@ -899,6 +987,12 @@ R: Sim. Se a VPS cair, o WhatsApp desconecta e clientes não recebem resposta.
 **P: O sistema funciona com WhatsApp em modo grupo?**
 R: Sim, há configuração para visualizar grupos. Útil para suporte de comunidade.
 
+**P: Só tenho 1 número de WhatsApp — dá pra usar Agente de Atendimento E Secretária no mesmo número?**
+R: Sim. A Secretária reconhece você pelo SEU número de telefone (§9.3), não pelo canal — então o mesmo número pode atender clientes normalmente E, quando VOCÊ manda mensagem, cai na Secretária.
+
+**P: Cadastrei meu número como admin da Secretária mas ela não me reconhece — o que fazer?**
+R: Confira em CONFIGURAÇÕES → Configurações → Agente IA → aba "Secretária IA" se o número está exatamente como pedido (só DDD + número, sem `+55`). Se digitou certo e ainda assim não funcionar, reinicie o backend (mudanças de configuração exigem reprocessar a sessão).
+
 ---
 
 ## 📞 Suporte
@@ -909,4 +1003,4 @@ R: Sim, há configuração para visualizar grupos. Útil para suporte de comunid
 
 ---
 
-**Versão deste manual:** 1.0 — 2026-05-17
+**Versão deste manual:** 2.0 — 2026-07-05 (atualizado: dois agentes de IA, Catálogo de Serviços, Pacotes de Sessões, Financeiro analytics, Provedor de IA centralizado no super admin)
