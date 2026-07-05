@@ -7,6 +7,21 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed — Erro silencioso no auto-close de tickets (ClosedAllOpenTickets) (2026-07-05)
+
+O cron [wbotClosedTickets.ts](backend/src/services/WbotServices/wbotClosedTickets.ts)
+iterava com `tickets.forEach(async ticket => {...})`: o `forEach` não aguarda nem
+propaga rejeições, então exceções escapavam do `try/catch` externo virando **unhandled
+rejections** (sem rastro). Além disso, `TicketTraking.findOne(...)` pode retornar `null`
+e `ticketTraking.update(...)` era chamado sem null-check → **TypeError** em runtime.
+**Fix:** `for...of` + `await` (erros agora ficam dentro do try/catch), guarda
+`if (!ticketTraking) { logger.warn(...); continue; }`, e o catch passou de `console.log`
+silencioso para `logger.error` com contexto (companyId). **Reforço (revisão do lead):**
+(1) `await closeTicket(...)` — sem o await a rejeição do update escaparia como unhandled
+rejection (mesma classe de bug); (2) `try/catch` POR-TICKET — uma falha isolada não aborta
+mais o lote inteiro; os demais seguem sendo processados. Comportamento no
+caminho feliz idêntico. 3 testes em `__tests__/wbotClosedTickets.spec.ts`.
+
 ### Security — Path traversal em nome de arquivo de mídia (CRÍTICO) (2026-06-28)
 
 Security review completo. `verifyMediaMessage` gravava a mídia recebida com

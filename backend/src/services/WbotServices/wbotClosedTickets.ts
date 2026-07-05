@@ -8,6 +8,7 @@ import moment from "moment";
 import ShowTicketService from "../TicketServices/ShowTicketService";
 import { verifyMessage } from "./wbotMessageListener";
 import TicketTraking from "../../models/TicketTraking";
+import { logger } from "../../utils/logger";
 
 export const ClosedAllOpenTickets = async (companyId: number): Promise<void> => {
 
@@ -51,68 +52,93 @@ export const ClosedAllOpenTickets = async (companyId: number): Promise<void> => 
       order: [["updatedAt", "DESC"]]
     });
 
-    tickets.forEach(async ticket => {
-      const showTicket = await ShowTicketService(ticket.id, companyId);
-      const whatsapp = await Whatsapp.findByPk(showTicket?.whatsappId);
-      const ticketTraking = await TicketTraking.findOne({
-        where: {
-          ticketId: ticket.id,
-          finishedAt: null,
+    // Loop sequencial com `for...of` + `await`: diferente de `forEach(async ...)`,
+    // aqui as rejeições NÃO viram unhandled rejections. Cada ticket tem seu PRÓPRIO
+    // try/catch para que uma falha isolada (ex: erro de BD num ticket) NÃO aborte o
+    // lote inteiro — os demais continuam sendo processados nesta execução do cron.
+    for (const ticket of tickets) {
+      try {
+        const showTicket = await ShowTicketService(ticket.id, companyId);
+        const whatsapp = await Whatsapp.findByPk(showTicket?.whatsappId);
+        const ticketTraking = await TicketTraking.findOne({
+          where: {
+            ticketId: ticket.id,
+            finishedAt: null,
+          }
+        })
+
+        if (!whatsapp) continue;
+
+        // ticketTraking pode ser null (nenhum tracking aberto para o ticket). Sem esta
+        // guarda, o `ticketTraking.update(...)` mais abaixo lançaria TypeError em runtime.
+        if (!ticketTraking) {
+          logger.warn(
+            `[ClosedAllOpenTickets] Nenhum TicketTraking aberto para ticketId=${ticket.id} (companyId=${companyId}); pulando.`
+          );
+          continue;
         }
-      })
 
-      if (!whatsapp) return;
-
-      let {
-        expiresInactiveMessage, //mensage de encerramento por inatividade      
-        expiresTicket //tempo em horas para fechar ticket automaticamente
-      } = whatsapp
+        let {
+          expiresInactiveMessage, //mensage de encerramento por inatividade
+          expiresTicket //tempo em horas para fechar ticket automaticamente
+        } = whatsapp
 
 
-      // @ts-ignore: Unreachable code error
-      if (expiresTicket && expiresTicket !== "" &&
         // @ts-ignore: Unreachable code error
-        expiresTicket !== "0" && Number(expiresTicket) > 0) {
+        if (expiresTicket && expiresTicket !== "" &&
+          // @ts-ignore: Unreachable code error
+          expiresTicket !== "0" && Number(expiresTicket) > 0) {
 
-        //mensagem de encerramento por inatividade
-        const bodyExpiresMessageInactive = formatBody(`\u200e ${expiresInactiveMessage}`, showTicket.contact);
+          //mensagem de encerramento por inatividade
+          const bodyExpiresMessageInactive = formatBody(`‎ ${expiresInactiveMessage}`, showTicket.contact);
 
-        const dataLimite = new Date()
-        dataLimite.setMinutes(dataLimite.getMinutes() - Number(expiresTicket));
+          const dataLimite = new Date()
+          dataLimite.setMinutes(dataLimite.getMinutes() - Number(expiresTicket));
 
-        if (showTicket.status === "open" && !showTicket.isGroup) {
+          if (showTicket.status === "open" && !showTicket.isGroup) {
 
-          const dataUltimaInteracaoChamado = new Date(showTicket.updatedAt)
+            const dataUltimaInteracaoChamado = new Date(showTicket.updatedAt)
 
-          if (dataUltimaInteracaoChamado < dataLimite && showTicket.fromMe) {
+            if (dataUltimaInteracaoChamado < dataLimite && showTicket.fromMe) {
 
-            closeTicket(showTicket, showTicket.status, bodyExpiresMessageInactive);
+              // AWAIT: sem ele a rejeição do update escaparia deste try/catch como
+              // unhandled rejection (a MESMA classe de bug que este fix elimina).
+              await closeTicket(showTicket, showTicket.status, bodyExpiresMessageInactive);
 
-            if (expiresInactiveMessage !== "" && expiresInactiveMessage !== undefined) {
-              const sentMessage = await SendWhatsAppMessage({ body: bodyExpiresMessageInactive, ticket: showTicket });
+              if (expiresInactiveMessage !== "" && expiresInactiveMessage !== undefined) {
+                const sentMessage = await SendWhatsAppMessage({ body: bodyExpiresMessageInactive, ticket: showTicket });
 
-              await verifyMessage(sentMessage, showTicket, showTicket.contact);
+                await verifyMessage(sentMessage, showTicket, showTicket.contact);
+              }
+
+              await ticketTraking.update({
+                finishedAt: moment().toDate(),
+                closedAt: moment().toDate(),
+                whatsappId: ticket.whatsappId,
+                userId: ticket.userId,
+              })
+
+              io.to("open").emit(`company-${companyId}-ticket`, {
+                action: "delete",
+                ticketId: showTicket.id
+              });
+
             }
-
-            await ticketTraking.update({
-              finishedAt: moment().toDate(),
-              closedAt: moment().toDate(),
-              whatsappId: ticket.whatsappId,
-              userId: ticket.userId,
-            })
-
-            io.to("open").emit(`company-${companyId}-ticket`, {
-              action: "delete",
-              ticketId: showTicket.id
-            });
-
           }
         }
+      } catch (ticketErr: any) {
+        // Falha isolada de um ticket não aborta o lote (cron roda a cada 5 min;
+        // o ticket volta a ser tentado na próxima execução).
+        logger.error(
+          `[ClosedAllOpenTickets] Falha ao processar ticketId=${ticket.id} (companyId=${companyId}): ${ticketErr?.message || ticketErr}`
+        );
       }
-    });
+    }
 
   } catch (e: any) {
-    console.log('e', e)
+    logger.error(
+      `[ClosedAllOpenTickets] Erro ao listar/fechar tickets abertos (companyId=${companyId}): ${e?.message || e}`
+    );
   }
 
 }
