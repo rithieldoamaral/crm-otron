@@ -7,7 +7,7 @@
 import Schedule from "../../../models/Schedule";
 import UserCalendar from "../../../models/UserCalendar";
 import Contact from "../../../models/Contact";
-import { deleteCalendarEvent } from "../calendarApi";
+import { deleteCalendarEvent, executeWithCalendarErrorHandling } from "../calendarApi";
 import { logger } from "../../../utils/logger";
 import { getIO } from "../../../libs/socket";
 
@@ -58,11 +58,18 @@ export async function cancelarEvento(
 
     if (userCalendar) {
       try {
-        await deleteCalendarEvent({
-          calendarId: (userCalendar as any).calendarId,
-          credentials: userCalendar as any,
-          eventId: s.googleEventId
-        });
+        // Wrapper invalida UserCalendar.isActive=false se o token estiver morto
+        // (invalid_grant / sem scope) e repropaga — o catch abaixo trata o
+        // cancelamento parcial normalmente.
+        await executeWithCalendarErrorHandling(
+          () => deleteCalendarEvent({
+            calendarId: (userCalendar as any).calendarId,
+            credentials: userCalendar as any,
+            eventId: s.googleEventId
+          }),
+          (userCalendar as any).id,
+          "cancelar_evento"
+        );
       } catch (err) {
         // Catch silencioso anterior fazia o LLM responder "✅ cancelado" enquanto
         // o evento permanecia vivo no Google Calendar. CLAUDE.md II.5 proíbe

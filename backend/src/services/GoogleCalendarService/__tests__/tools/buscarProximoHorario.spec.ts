@@ -11,7 +11,16 @@ jest.mock("../../../../models/Service");
 jest.mock("../../../../models/ServiceProfessional");
 jest.mock("../../../../models/UserCalendar");
 jest.mock("../../../../models/UserWorkingHours");
-jest.mock("../../calendarApi");
+// executeWithCalendarErrorHandling precisa ser pass-through real (invoca o fn);
+// os fns de API continuam mockáveis. Ver verificarDisponibilidade.spec.ts.
+jest.mock("../../calendarApi", () => ({
+  __esModule: true,
+  getBusyPeriods: jest.fn(),
+  createCalendarEvent: jest.fn(),
+  deleteCalendarEvent: jest.fn(),
+  isCalendarConnectionInvalid: jest.fn(() => false),
+  executeWithCalendarErrorHandling: jest.fn((fn: () => Promise<any>) => fn())
+}));
 
 import { buscarProximoHorario } from "../../tools/buscarProximoHorario";
 import Service from "../../../../models/Service";

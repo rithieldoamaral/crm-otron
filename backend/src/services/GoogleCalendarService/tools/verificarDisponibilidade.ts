@@ -8,7 +8,7 @@ import ServiceProfessional from "../../../models/ServiceProfessional";
 import UserCalendar from "../../../models/UserCalendar";
 import UserWorkingHours from "../../../models/UserWorkingHours";
 import User from "../../../models/User";
-import { getBusyPeriods } from "../calendarApi";
+import { getBusyPeriods, executeWithCalendarErrorHandling } from "../calendarApi";
 import { calculateAvailableSlots, filterSlotsByPeriod, normalizePeriod, slotsToRanges, formatDateWithWeekdayBRT } from "../availabilityEngine";
 import { logger } from "../../../utils/logger";
 
@@ -161,11 +161,19 @@ export async function verificarDisponibilidade(
       continue;
     }
 
-    const busy = await getBusyPeriods({
-      calendarId: (userCalendar as any).calendarId,
-      credentials: userCalendar as any,
-      date: args.data
-    }).catch(() => []);
+    // Fail-open preservado: erro transitório do Google → assume dia livre.
+    // O wrapper invalida UserCalendar.isActive=false se o token estiver morto
+    // (invalid_grant / sem scope), refletindo o estado na UI — o .catch externo
+    // ainda garante que a tool não quebra para o cliente.
+    const busy = await executeWithCalendarErrorHandling(
+      () => getBusyPeriods({
+        calendarId: (userCalendar as any).calendarId,
+        credentials: userCalendar as any,
+        date: args.data
+      }),
+      (userCalendar as any).id,
+      "verificar_disponibilidade"
+    ).catch(() => []);
 
     const allSlots = calculateAvailableSlots({
       date: args.data,

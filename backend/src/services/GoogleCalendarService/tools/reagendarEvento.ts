@@ -9,7 +9,7 @@ import ServiceProfessional from "../../../models/ServiceProfessional";
 import User from "../../../models/User";
 import UserCalendar from "../../../models/UserCalendar";
 import UserWorkingHours from "../../../models/UserWorkingHours";
-import { deleteCalendarEvent, createCalendarEvent, getBusyPeriods } from "../calendarApi";
+import { deleteCalendarEvent, createCalendarEvent, getBusyPeriods, executeWithCalendarErrorHandling } from "../calendarApi";
 import { gerarLinkGoogleCalendar } from "./gerarLinkGoogleCalendar";
 import { brtWallClockToInstant } from "../timezone";
 import { calculateAvailableSlots, slotsToRanges, formatDateWithWeekdayBRT } from "../availabilityEngine";
@@ -178,11 +178,15 @@ export async function reagendarEvento(
   // getBusyPeriods pode falhar por erro transitório do Google. Fail-open:
   // null sinaliza "não consegui checar a agenda" → não bloqueia a remarcação.
   // [] = checou, sem conflitos. Mesmo critério de criarEvento (Bug #39).
-  const busy = await getBusyPeriods({
-    calendarId: cal.calendarId,
-    credentials: cal,
-    date: args.novaData
-  }).catch(() => null);
+  const busy = await executeWithCalendarErrorHandling(
+    () => getBusyPeriods({
+      calendarId: cal.calendarId,
+      credentials: cal,
+      date: args.novaData
+    }),
+    cal.id,
+    "reagendar_evento"
+  ).catch(() => null);
 
   if (busy !== null) {
     const livres = calculateAvailableSlots({
@@ -209,14 +213,18 @@ export async function reagendarEvento(
   // PASSO 1: criar novo evento. Se falhar, antigo permanece intacto.
   let novoEvent: { id: string };
   try {
-    novoEvent = await createCalendarEvent({
-      calendarId: cal.calendarId,
-      credentials: cal,
-      summary: `${s.service?.name ?? "Serviço"} — ${s.contact?.name ?? "Cliente"}`,
-      description: `Reagendado. Cliente: ${s.contact?.name} (${s.contact?.number})`,
-      startDateTime: startISO,
-      endDateTime: endDate.toISOString()
-    });
+    novoEvent = await executeWithCalendarErrorHandling(
+      () => createCalendarEvent({
+        calendarId: cal.calendarId,
+        credentials: cal,
+        summary: `${s.service?.name ?? "Serviço"} — ${s.contact?.name ?? "Cliente"}`,
+        description: `Reagendado. Cliente: ${s.contact?.name} (${s.contact?.number})`,
+        startDateTime: startISO,
+        endDateTime: endDate.toISOString()
+      }),
+      cal.id,
+      "reagendar_evento"
+    );
   } catch (err) {
     logger.error(
       `[reagendar_evento] falha ao criar novo evento (scheduleId=${args.scheduleId} ` +
@@ -229,11 +237,15 @@ export async function reagendarEvento(
   let deleteFalhou = false;
   if (s.googleEventId) {
     try {
-      await deleteCalendarEvent({
-        calendarId: cal.calendarId,
-        credentials: cal,
-        eventId: s.googleEventId
-      });
+      await executeWithCalendarErrorHandling(
+        () => deleteCalendarEvent({
+          calendarId: cal.calendarId,
+          credentials: cal,
+          eventId: s.googleEventId
+        }),
+        cal.id,
+        "reagendar_evento"
+      );
     } catch (err) {
       deleteFalhou = true;
       logger.warn(

@@ -8,7 +8,7 @@ import ServiceProfessional from "../../../models/ServiceProfessional";
 import UserCalendar from "../../../models/UserCalendar";
 import UserWorkingHours from "../../../models/UserWorkingHours";
 import User from "../../../models/User";
-import { getBusyPeriods } from "../calendarApi";
+import { getBusyPeriods, executeWithCalendarErrorHandling } from "../calendarApi";
 import { calculateAvailableSlots, filterSlotsByPeriod, normalizePeriod, formatDateWithWeekdayBRT } from "../availabilityEngine";
 import { logger } from "../../../utils/logger";
 
@@ -100,11 +100,17 @@ export async function buscarProximoHorario(
       if (!workingHours || !(workingHours as any).isWorking) continue;
       workingHoursFoundAny = true;
 
-      const busy = await getBusyPeriods({
-        calendarId: (userCalendar as any).calendarId,
-        credentials: userCalendar as any,
-        date: dateStr
-      }).catch(() => []);
+      // Fail-open preservado (.catch => []); o wrapper invalida a conexão na UI
+      // se o token estiver morto (invalid_grant / sem scope).
+      const busy = await executeWithCalendarErrorHandling(
+        () => getBusyPeriods({
+          calendarId: (userCalendar as any).calendarId,
+          credentials: userCalendar as any,
+          date: dateStr
+        }),
+        (userCalendar as any).id,
+        "buscarProximoHorario"
+      ).catch(() => []);
 
       const allSlots = calculateAvailableSlots({
         date: dateStr,

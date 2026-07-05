@@ -7,7 +7,17 @@ jest.mock("../../../../models/Service");
 jest.mock("../../../../models/ServiceProfessional");
 jest.mock("../../../../models/UserCalendar");
 jest.mock("../../../../models/UserWorkingHours");
-jest.mock("../../calendarApi");
+// calendarApi é auto-mockado, MAS executeWithCalendarErrorHandling precisa ser um
+// pass-through real (invoca o fn recebido), senão a tool recebe undefined e o
+// fail-open (.catch) quebra. Os fns de API continuam mockáveis (jest.fn).
+jest.mock("../../calendarApi", () => ({
+  __esModule: true,
+  getBusyPeriods: jest.fn(),
+  createCalendarEvent: jest.fn(),
+  deleteCalendarEvent: jest.fn(),
+  isCalendarConnectionInvalid: jest.fn(() => false),
+  executeWithCalendarErrorHandling: jest.fn((fn: () => Promise<any>) => fn())
+}));
 
 import { verificarDisponibilidade } from "../../tools/verificarDisponibilidade";
 import Service from "../../../../models/Service";

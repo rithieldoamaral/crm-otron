@@ -5,6 +5,32 @@ Formato: Data | Decisão | Motivo | Alternativas descartadas
 
 ---
 
+## 2026-07-05 — Tier 3 (escala): ITEM D step 4 (GROUP BY serviceId) adiado
+
+**Contexto:** Fase 7 adiciona FK `serviceId` (nullable) em `ServiceHistory` para
+permitir GROUP BY confiável por serviço do catálogo no analytics financeiro
+(`FinanceService.getTopServices`, hoje agrupa pelo texto livre `serviceType`).
+
+**Feito nesta sessão (backward-compatible, com TDD):** migration nullable + index (NÃO
+executada — só o arquivo), campo no model `ServiceHistory`, e persistência de `serviceId`
+em `recordHistory` (grava quando fornecido; chamadas legadas → null).
+
+**Adiado (com motivo):** trocar o `group: ["serviceType"]` de `getTopServices` para
+`serviceId`. Motivo: **todos os registros existentes têm `serviceId=NULL`** (a coluna
+acabou de ser criada e ainda não foi backfillada). Trocar o GROUP BY agora não traz
+benefício (não há dado novo para agrupar) e cria risco real de regressão nos números do
+dashboard — mistura de buckets serviceId vs serviceType, colisão de labels
+("Sem categoria"), e necessidade de JOIN com Services para o nome. CLAUDE.md II.5/II.6
+(mínima mudança, não quebrar números existentes).
+
+**Gatilho para ativar:** quando (a) a migration for executada em produção, (b) `recordHistory`
+estiver populando serviceId há tempo suficiente para os dados acumularem, OU houver backfill.
+Aí: reescrever `getTopServices` para PREFERIR serviceId quando presente (JOIN em Services
+para o nome) mantendo FALLBACK a serviceType para registros históricos sem serviceId, com
+TDD provando que os totais legados não mudam.
+
+---
+
 ## 2026-06-28 — Security review completo + revisão geral (achados e tech debt)
 
 **Corrigido nesta sessão (com TDD):**

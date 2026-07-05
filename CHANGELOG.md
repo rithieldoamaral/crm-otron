@@ -7,6 +7,46 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Performance — Tier 3: escala/performance de mensagens, calendário e retenção (2026-07-05)
+
+**ITEM A — `Message.count` por-mensagem eliminado.** `handleMessage`
+([wbotMessageListener.ts](backend/src/services/WbotServices/wbotMessageListener.ts))
+rodava `Message.count({ where: { companyId } })` a CADA mensagem recebida (query
+crescente e cara em produção) só para disparar a dedup de contatos "a cada 1000".
+Substituído por um contador em memória por-companyId em
+[dedupCounter.ts](backend/src/services/WbotServices/dedupCounter.ts) (`shouldRunDedup`),
+mantendo a mesma cadência sem tocar o banco no caminho quente. Limitação aceita:
+contador é por-instância e reseta em restart (dedup é limpeza best-effort). 5 testes
+novos.
+
+**ITEM B — auto-invalidação de UserCalendar em TODAS as tools de calendário.**
+Antes, só `criarEvento` marcava `UserCalendar.isActive=false` em token morto
+(`invalid_grant` / `insufficient authentication scopes`); as demais tools falhavam em
+silêncio e a UI seguia mostrando "Conectado". Extraído helper
+`executeWithCalendarErrorHandling` + predicado puro `isCalendarConnectionInvalid` em
+[calendarApi.ts](backend/src/services/GoogleCalendarService/calendarApi.ts) (DRY),
+aplicado em `verificarDisponibilidade`, `buscarProximoHorario`, `cancelarEvento` e
+`reagendarEvento` — preservando o fail-open (`.catch`) de cada uma. 9 testes novos.
+
+**ITEM C — N+1 eliminado em RFM/Dormant.** `RetentionController.listDormant` e
+`getSummary` faziam uma query `listForContact` POR contato (N+1; >1k round-trips para
+empresas grandes). Substituído por UMA carga do histórico da empresa + agrupamento em
+memória via `groupHistoryByContact`
+([ServiceHistoryService.utils.ts](backend/src/services/RetentionService/ServiceHistoryService.utils.ts)),
+que replica exatamente `ORDER BY occurredAt DESC LIMIT 50` por contato — nenhum número
+muda. Guard de pacote ativo (Tier 2) preservado. 8 testes novos.
+
+**ITEM D (parcial) — infraestrutura de `serviceId` FK em ServiceHistory.** Adicionados
+(backward-compatible): migration nullable FK + index
+([20260705000001-add-serviceId-to-ServiceHistories.ts](backend/src/database/migrations/20260705000001-add-serviceId-to-ServiceHistories.ts)
+— NÃO executada), campo no model
+([ServiceHistory.ts](backend/src/models/ServiceHistory.ts)) e persistência em
+`recordHistory` (grava `serviceId` quando fornecido; legado → null). 3 testes novos.
+**Adiado:** a troca do GROUP BY de `getTopServices` (FinanceService) de `serviceType`
+para `serviceId` — enquanto todos os registros existentes têm `serviceId=NULL`, a troca
+não traria benefício e criaria risco de regressão nos números do dashboard. Ativar
+quando os dados populados de serviceId acumularem (ver decisions_log.md).
+
 ### Fixed — Cliente com pacote ativo classificado como adormecido/perdido (2026-07-05)
 
 Receita de pacotes é reconhecida em cash basis: um `ServiceHistory` com

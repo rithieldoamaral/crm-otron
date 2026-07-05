@@ -34,6 +34,7 @@ import Company from "./Company";
 import Contact from "./Contact";
 import Ticket from "./Ticket";
 import Schedule from "./Schedule";
+import Service from "./Service";
 
 export type ServiceHistorySource =
   | "scheduled_autoclose"
@@ -77,6 +78,19 @@ class ServiceHistory extends Model<ServiceHistory> {
 
   @BelongsTo(() => Schedule)
   schedule: Schedule;
+
+  /**
+   * FK para o serviço do catálogo (Fase 7 — nullable, backward-compatible).
+   * Registros históricos (pré-migration) e chamadas legadas ficam com null e
+   * continuam a ser agregados por `serviceType`. Preferir este campo no
+   * analytics quando presente.
+   */
+  @ForeignKey(() => Service)
+  @Column({ type: DataType.INTEGER, allowNull: true })
+  serviceId: number;
+
+  @BelongsTo(() => Service)
+  service: Service;
 
   /** Origem do registro — ver type ServiceHistorySource */
   @Column({ type: DataType.STRING(30), allowNull: false })

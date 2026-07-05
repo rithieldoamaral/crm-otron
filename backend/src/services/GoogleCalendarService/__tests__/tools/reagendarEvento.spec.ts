@@ -8,7 +8,16 @@ jest.mock("../../../../models/ServiceProfessional");
 jest.mock("../../../../models/User");
 jest.mock("../../../../models/UserCalendar");
 jest.mock("../../../../models/UserWorkingHours");
-jest.mock("../../calendarApi");
+// executeWithCalendarErrorHandling: pass-through real (repropaga rejeições).
+// Ver verificarDisponibilidade.spec.ts.
+jest.mock("../../calendarApi", () => ({
+  __esModule: true,
+  getBusyPeriods: jest.fn(),
+  createCalendarEvent: jest.fn(),
+  deleteCalendarEvent: jest.fn(),
+  isCalendarConnectionInvalid: jest.fn(() => false),
+  executeWithCalendarErrorHandling: jest.fn((fn: () => Promise<any>) => fn())
+}));
 jest.mock("../../../../libs/socket", () => ({
   getIO: jest.fn().mockReturnValue({ to: jest.fn().mockReturnValue({ emit: jest.fn() }) })
 }));

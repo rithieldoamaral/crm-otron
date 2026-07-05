@@ -137,6 +137,9 @@ export async function recordHistory(
     ticketId: ticketId ?? null,
     companyId,
     scheduleId: scheduleId ?? null,
+    // Fase 7: persiste o vínculo com o catálogo quando fornecido. Chamadas
+    // legadas (sem serviceId) gravam null — backward-compatible.
+    serviceId: serviceId ?? null,
     source,
     serviceType: serviceType ?? null,
     value: resolvedValue,

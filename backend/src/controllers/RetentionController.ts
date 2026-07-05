@@ -25,6 +25,7 @@ import WinbackAttempt from "../models/WinbackAttempt";
 import Coupon from "../models/Coupon";
 import { classify, DormantStatusType } from "../services/RetentionService/DormantDetectionService";
 import { listForContact, getSummaryForContact } from "../services/RetentionService/ServiceHistoryService";
+import { groupHistoryByContact } from "../services/RetentionService/ServiceHistoryService.utils";
 import { createCoupon, listForContact as listCoupons } from "../services/RetentionService/CouponService";
 import {
   isDormantStatus,
@@ -137,17 +138,21 @@ export const listDormant = async (
   const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
   const statusFilter = parseStatusFilter(status);
 
-  // 1. Busca contactIds distintos que têm histórico na empresa
-  const rows = await ServiceHistory.findAll({
-    attributes: ["contactId"],
+  // 1. Carrega TODO o histórico da empresa em UMA query e agrupa por contato em
+  //    memória (ITEM C — escala). Antes: 1 query de contactIds distintos + N
+  //    queries `listForContact` (N+1). Agora: 1 query só. `groupHistoryByContact`
+  //    replica exatamente o `ORDER BY occurredAt DESC LIMIT 50` por contato, então
+  //    os registros passados a `classify` — e todos os números — são idênticos.
+  const historyRows = await ServiceHistory.findAll({
+    attributes: ["contactId", "occurredAt"],
     where: { companyId },
-    group: ["contactId"],
+    order: [["occurredAt", "DESC"]],
     raw: true
   }) as any[];
 
-  const contactIds: number[] = rows.map((r: any) => r.contactId).filter(Boolean);
+  const historyByContact = groupHistoryByContact(historyRows, 50);
 
-  if (contactIds.length === 0) {
+  if (historyByContact.size === 0) {
     return res.json({ items: [], total: 0, page: pageNum, pages: 0, summary: buildDormantSummary([]) });
   }
 
@@ -165,10 +170,9 @@ export const listDormant = async (
     totalServices: number;
   }> = [];
 
-  for (const contactId of contactIds) {
+  for (const [contactId, history] of historyByContact) {
     if (activePackageContacts.has(contactId)) continue;
 
-    const history = await listForContact({ contactId, companyId, limit: 50 });
     const result = classify(history);
 
     if (isDormantStatus(result.status, statusFilter)) {
@@ -231,14 +235,16 @@ export const getSummary = async (
 ): Promise<Response> => {
   const { companyId } = req.user;
 
-  const rows = await ServiceHistory.findAll({
-    attributes: ["contactId"],
+  // Carga única + agrupamento em memória (ITEM C — mesmo padrão do listDormant,
+  // elimina o N+1 sem alterar números).
+  const historyRows = await ServiceHistory.findAll({
+    attributes: ["contactId", "occurredAt"],
     where: { companyId },
-    group: ["contactId"],
+    order: [["occurredAt", "DESC"]],
     raw: true
   }) as any[];
 
-  const contactIds: number[] = rows.map((r: any) => r.contactId).filter(Boolean);
+  const historyByContact = groupHistoryByContact(historyRows, 50);
 
   // Guard de pacote ativo (Tier 2): mesma exclusão do listDormant — o sumário
   // alimenta o mesmo painel "para reativar", então clientes com pacote ativo não
@@ -247,10 +253,9 @@ export const getSummary = async (
 
   const classified: Array<{ status: DormantStatusType }> = [];
 
-  for (const contactId of contactIds) {
+  for (const [contactId, history] of historyByContact) {
     if (activePackageContacts.has(contactId)) continue;
 
-    const history = await listForContact({ contactId, companyId, limit: 50 });
     const result = classify(history);
     classified.push({ status: result.status });
   }

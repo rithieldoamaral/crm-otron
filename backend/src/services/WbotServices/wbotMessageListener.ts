@@ -79,6 +79,7 @@ import ffmpegPath from 'ffmpeg-static';
 import mime from "mime-types";
 import { ensureFolderPermissions, ensureFilePermissions } from "../../helpers/EnsurePermissions";
 import { sanitizeFilename } from "../../helpers/SanitizeFilename";
+import { shouldRunDedup } from "./dedupCounter";
 ffmpeg.setFfmpegPath(ffmpegPath);
 
 const request = require("request");
@@ -3216,9 +3217,10 @@ const handleMessage = async (
     let msgContact: IMe;
     let groupContact: Contact | undefined;
     
-    // Executar unificação de contatos duplicados periodicamente (a cada 1000 mensagens)
-    const messageCount = await Message.count({ where: { companyId } });
-    if (messageCount % 1000 === 0) {
+    // Executar unificação de contatos duplicados periodicamente (a cada 1000 mensagens).
+    // PORQUÊ: contador em memória por-companyId evita `Message.count` no banco a cada
+    // mensagem recebida (query crescente e cara em produção). Ver dedupCounter.ts.
+    if (shouldRunDedup(companyId)) {
       await unifyDuplicateContacts(companyId);
     }
 

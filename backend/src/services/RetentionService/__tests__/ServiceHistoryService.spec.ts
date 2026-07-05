@@ -13,7 +13,7 @@
  *   - Retorna false para array vazio, undefined, false ou ausente
  */
 
-import { hasCompletionTag } from "../ServiceHistoryService.utils";
+import { hasCompletionTag, groupHistoryByContact } from "../ServiceHistoryService.utils";
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -85,6 +85,84 @@ describe("hasCompletionTag — casos de FALSE (sem tag de conclusão)", () => {
     // Deve ser === true (strict), não truthy
     const tags = [{ isCompletionTag: 1 as any }];
     expect(hasCompletionTag(tags)).toBe(false);
+  });
+});
+
+// ── groupHistoryByContact (ITEM C — elimina N+1 sem mudar números) ──────
+describe("groupHistoryByContact", () => {
+  const d = (iso: string) => ({ occurredAt: new Date(iso) });
+  const row = (contactId: number, iso: string) => ({ contactId, ...d(iso) });
+
+  it("agrupa registros por contactId", () => {
+    const grouped = groupHistoryByContact([
+      row(1, "2026-05-10"),
+      row(2, "2026-05-05"),
+      row(1, "2026-04-01")
+    ]);
+    expect(grouped.size).toBe(2);
+    expect(grouped.get(1)!.length).toBe(2);
+    expect(grouped.get(2)!.length).toBe(1);
+  });
+
+  it("mantém cada grupo ordenado DESC por occurredAt (paridade com listForContact)", () => {
+    const grouped = groupHistoryByContact([
+      row(1, "2026-01-01"),
+      row(1, "2026-05-10"),
+      row(1, "2026-03-03")
+    ]);
+    const dates = grouped.get(1)!.map(r => r.occurredAt.toISOString().slice(0, 10));
+    expect(dates).toEqual(["2026-05-10", "2026-03-03", "2026-01-01"]);
+  });
+
+  it("aplica o cap de `limit` mantendo os MAIS RECENTES (igual a ORDER BY DESC LIMIT n)", () => {
+    const rows = [
+      row(1, "2026-01-01"),
+      row(1, "2026-02-01"),
+      row(1, "2026-03-01"),
+      row(1, "2026-04-01")
+    ];
+    const grouped = groupHistoryByContact(rows, 2);
+    const dates = grouped.get(1)!.map(r => r.occurredAt.toISOString().slice(0, 10));
+    expect(dates).toEqual(["2026-04-01", "2026-03-01"]);
+  });
+
+  it("preserva EXATAMENTE os mesmos registros que N queries listForContact dariam", () => {
+    // Simula o resultado de uma query global ORDER BY occurredAt DESC.
+    const flat = [
+      row(1, "2026-05-01"),
+      row(2, "2026-04-20"),
+      row(1, "2026-03-15"),
+      row(3, "2026-03-10"),
+      row(2, "2026-02-01")
+    ];
+    const grouped = groupHistoryByContact(flat, 50);
+    expect(grouped.get(1)!.map(r => r.occurredAt.getTime())).toEqual([
+      new Date("2026-05-01").getTime(),
+      new Date("2026-03-15").getTime()
+    ]);
+    expect(grouped.get(2)!.map(r => r.occurredAt.getTime())).toEqual([
+      new Date("2026-04-20").getTime(),
+      new Date("2026-02-01").getTime()
+    ]);
+    expect(grouped.get(3)!.length).toBe(1);
+  });
+
+  it("ignora registros sem contactId", () => {
+    const grouped = groupHistoryByContact([
+      { contactId: null as any, occurredAt: new Date("2026-05-01") },
+      row(1, "2026-05-02")
+    ]);
+    expect(grouped.size).toBe(1);
+    expect(grouped.has(1)).toBe(true);
+  });
+
+  it("limit <= 0 retorna grupos vazios (sem lançar)", () => {
+    const grouped = groupHistoryByContact([row(1, "2026-05-01")], 0);
+    expect(grouped.get(1)).toEqual([]);
+  });
+
+  it("array vazio retorna mapa vazio", () => {
+    expect(groupHistoryByContact([]).size).toBe(0);
   });
 });
 
