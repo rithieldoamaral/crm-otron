@@ -5,6 +5,22 @@ Formato: Data | Decisão | Motivo | Alternativas descartadas
 
 ---
 
+## 2026-07-11 — Calendário ativo como sinal de "empresa faz agendamento"
+
+**Contexto:** nem todo comércio trabalha com hora marcada. A regra dura "SEMPRE chame listar_servicos" + fluxo de agendamento eram sempre injetados, fazendo o agente empurrar agendamento mesmo para quem não agenda.
+
+**Decisão:** usar a presença de ao menos um `UserCalendar` ativo (`isActive:true`) da empresa como o interruptor determinístico. `companyHasActiveCalendar(companyId)` no `knowledgeBuilder`; se true, injeta os blocos de agendamento (comportamento atual); se false, injeta bloco "NÃO trabalha com agendamento" e omite a regra dura.
+
+**Por que o calendário (e não uma nova flag/Setting):** o usuário pediu explicitamente que a sincronização de calendário fosse a referência. Vantagem: zero configuração extra — conectar/desconectar o Google Calendar já liga/desliga o modo. Menos um Setting para o dono entender.
+
+**Compatibilidade:** ambas as empresas de teste (Otron CRM e Bomma) têm calendário ativo hoje → nenhuma perde o fluxo. Para Otron CRM virar não-agendamento (vende assinatura de software), basta desconectar o calendário dela.
+
+**Trade-off aceito:** +1 query `UserCalendar.count` por turno (não cacheada). É um count indexado por companyId — desprezível perto da chamada ao LLM. Se virar gargalo, cachear junto do settingsCache (TTL 30s). Registrado, não otimizado agora (mínima mudança).
+
+**Não gateado (deixado intacto por minimalidade):** o item 7/8 do bloco genérico "REGRAS DE FERRAMENTAS" ainda cita criar_evento/dia-da-semana mesmo sem calendário. É condicional ("Para criar agendamentos...") e o bloco explícito "NÃO agenda" domina. Fragmentar o bloco genérico não valia o churn.
+
+---
+
 ## 2026-07-11 — Migração do guia de deploy: Contabo → Hostinger VPS KVM 4
 
 **Decisão:** usuário pediu segunda opinião (Claude Web) sobre hospedagem; escolheu Hostinger VPS **KVM 4** (4 vCPU AMD EPYC, 16GB RAM, 200GB NVMe SSD, 16TB banda). `docs/DEPLOY_DOCKER_CONTABO.md` renomeado (git mv, preserva histórico) para `docs/DEPLOY_DOCKER_HOSTINGER.md` e reescrito para o fluxo real da Hostinger (hPanel, terminal no navegador, firewall gerenciado, backup/snapshot nativo).

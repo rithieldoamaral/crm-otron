@@ -7,6 +7,26 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Added — Gate de agendamento por calendário ativo no Agente de Atendimento (2026-07-11)
+
+Nem todo comércio trabalha com hora marcada (loja, delivery, prestador sem agenda). O
+**Google Calendar conectado e ativo** passa a ser o sinal determinístico de que a empresa
+faz agendamento:
+- **COM calendário ativo:** comportamento idêntico ao de hoje — fluxo de agendamento +
+  regra "SEMPRE chame `listar_servicos`" + blocos de Catálogo/Pacotes.
+- **SEM nenhum calendário ativo:** o system prompt OMITE esses blocos e injeta uma
+  instrução clara ("Esta empresa NÃO trabalha com agendamento") — o agente vira consultivo/
+  informativo, não usa as tools de agenda, e só consulta `listar_servicos`/`listar_pacotes`
+  sob demanda para informar preço (mantendo a proteção anti-alucinação: nunca inventa
+  serviço/preço).
+
+Novo helper `companyHasActiveCalendar()` (conta `UserCalendar` ativos da empresa) em
+[knowledgeBuilder.ts](backend/src/services/AgentService/knowledgeBuilder.ts). O switch é a
+própria conexão de calendário — conectar/desconectar em Configurações → Calendário liga/
+desliga o modo agendamento, sem tocar em config. Vale para 1 ou mais calendários.
+4 testes novos; 24/24 do knowledgeBuilder verdes; validado contra o banco real (empresa
+com calendário ativo mantém o fluxo). tsc + build limpos.
+
 ### Changed — Guia de deploy migrado de Contabo para Hostinger VPS KVM 4 (2026-07-11)
 
 `docs/DEPLOY_DOCKER_CONTABO.md` renomeado para `docs/DEPLOY_DOCKER_HOSTINGER.md` (git mv,

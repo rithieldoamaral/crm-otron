@@ -3,6 +3,7 @@
  */
 
 jest.mock("../../../models/Setting");
+jest.mock("../../../models/UserCalendar");
 // settingsCache usa Setting.findAll internamente — mocking o modelo é suficiente.
 // Mas o cache em memória persiste entre testes: clearSettingsCache() garante
 // que cada teste parte de um estado limpo e recebe seu próprio mock return.
@@ -12,10 +13,12 @@ jest.mock("../settingsCache", () => {
 });
 
 import Setting from "../../../models/Setting";
+import UserCalendar from "../../../models/UserCalendar";
 import { buildSystemPrompt, getTemperatureForPersonality } from "../knowledgeBuilder";
 import { clearSettingsCache } from "../settingsCache";
 
 const mockFindAll = Setting.findAll as jest.Mock;
+const mockCalendarCount = UserCalendar.count as jest.Mock;
 
 function makeSettings(overrides: Record<string, string> = {}) {
   const defaults: Record<string, string> = {
@@ -38,6 +41,10 @@ describe("buildSystemPrompt", () => {
     // settingsCache persiste entre testes — limpar garante que cada teste
     // vê seu próprio mockFindAll.mockResolvedValue sem interferência.
     clearSettingsCache();
+    // Default: empresa TEM calendário ativo (é uma empresa de agendamento). Os
+    // testes existentes assumem o fluxo de agendamento presente; o gate por
+    // calendário só o remove quando não há calendário (testes específicos abaixo).
+    mockCalendarCount.mockResolvedValue(1);
   });
 
   it("inclui nome do agente no prompt", async () => {
@@ -187,6 +194,69 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toMatch(/anivers[áa]rio/i);
     // Deve deixar claro que é AO FINAL / atendimento concluído — não no meio do fluxo.
     expect(prompt).toMatch(/(final|conclu[íi])/i);
+  });
+});
+
+// Gate de agendamento por calendário ativo (2026-07-11): o CALENDÁRIO conectado
+// é o sinal determinístico de que a empresa trabalha com agendamento. Sem nenhum
+// calendário ativo, o agente NÃO deve empurrar o fluxo de agendamento nem a regra
+// "SEMPRE chame listar_servicos" — nem todo comércio agenda.
+describe("buildSystemPrompt — gate de agendamento por calendário ativo", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    clearSettingsCache();
+  });
+
+  it("COM calendário ativo: mantém o fluxo de agendamento e a regra 'SEMPRE chame listar_servicos'", async () => {
+    mockCalendarCount.mockResolvedValue(2); // 2 calendários ativos
+    mockFindAll.mockResolvedValue(makeSettings());
+
+    const prompt = await buildSystemPrompt(1);
+
+    expect(prompt).toMatch(/SEMPRE chame `?listar_servicos/i);
+    expect(prompt).toMatch(/verificar_disponibilidade/);
+    expect(prompt).toMatch(/criar_evento/);
+    expect(prompt).toMatch(/FLUXO PADRÃO/);
+  });
+
+  it("SEM calendário ativo: remove a regra 'SEMPRE chame listar_servicos' e o fluxo de agendamento", async () => {
+    mockCalendarCount.mockResolvedValue(0); // nenhum calendário ativo
+    mockFindAll.mockResolvedValue(makeSettings());
+
+    const prompt = await buildSystemPrompt(1);
+
+    // Não empurra o fluxo de agendamento
+    expect(prompt).not.toMatch(/SEMPRE chame `?listar_servicos/i);
+    expect(prompt).not.toMatch(/FLUXO PADRÃO PARA QUALQUER PEDIDO DE ATENDIMENTO\/AGENDAMENTO/);
+    // Deixa explícito que a empresa NÃO agenda
+    expect(prompt).toMatch(/N[ÃA]O trabalha com agendamento/i);
+    // E orienta a não usar as tools de agenda
+    expect(prompt).toMatch(/verificar_disponibilidade|buscar_proximo_horario|criar_evento/);
+  });
+
+  it("checa UserCalendar por companyId (isActive)", async () => {
+    mockCalendarCount.mockResolvedValue(0);
+    mockFindAll.mockResolvedValue(makeSettings());
+
+    await buildSystemPrompt(77);
+
+    expect(mockCalendarCount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ companyId: 77, isActive: true })
+      })
+    );
+  });
+
+  it("SEM calendário: ainda pode consultar listar_servicos para informar preço (não inventa)", async () => {
+    mockCalendarCount.mockResolvedValue(0);
+    mockFindAll.mockResolvedValue(makeSettings());
+
+    const prompt = await buildSystemPrompt(1);
+
+    // Ainda menciona listar_servicos como consulta opcional de preço/serviço...
+    expect(prompt).toMatch(/listar_servicos/);
+    // ...e mantém a proteção anti-alucinação (não inventar serviço/preço).
+    expect(prompt).toMatch(/(nunca invente|não invente)/i);
   });
 });
 

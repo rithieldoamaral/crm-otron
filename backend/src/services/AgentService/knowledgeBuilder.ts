@@ -4,6 +4,22 @@
  */
 
 import { getSettingsByCompany } from "./settingsCache";
+import UserCalendar from "../../models/UserCalendar";
+
+/**
+ * A empresa trabalha com AGENDAMENTO? O sinal determinístico é ter ao menos um
+ * Google Calendar conectado e ativo (2026-07-11): nem todo comércio agenda
+ * (loja, delivery, prestador sem hora marcada). Quando NÃO há calendário ativo,
+ * o system prompt omite o fluxo de agendamento e a regra "SEMPRE chame
+ * listar_servicos" — o agente vira consultivo/informativo, não marcador de horário.
+ *
+ * @param companyId - empresa (multi-tenant)
+ * @returns true se existe ao menos um UserCalendar ativo na empresa
+ */
+async function companyHasActiveCalendar(companyId: number): Promise<boolean> {
+  const active = await UserCalendar.count({ where: { companyId, isActive: true } });
+  return active > 0;
+}
 
 const PERSONALITY_TEMPERATURES: Record<string, number> = {
   atencioso: 0.3,
@@ -90,24 +106,51 @@ export async function buildSystemPrompt(companyId: number): Promise<string> {
 
   sections.push(personalityDesc);
 
-  sections.push(
-    "Você tem acesso a ferramentas (tools). As principais para agendamento são: " +
-    "`listar_servicos` (catálogo de serviços avulsos), `listar_pacotes` (pacotes de múltiplas sessões com desconto), " +
-    "`verificar_disponibilidade` / `buscar_proximo_horario` " +
-    "(consultar agenda), `criar_evento` (efetivamente marcar — única ferramenta de criação). " +
-    "Use também `buscar_contato`, `enviar_mensagem`, `notificar_proprietario`, " +
-    "`transferir_para_humano` e `registrar_aniversario`."
-  );
+  // Gate de agendamento (2026-07-11): o calendário conectado é o sinal de que a
+  // empresa trabalha com hora marcada. Sem calendário ativo, omitimos o fluxo de
+  // agendamento e a regra "SEMPRE chame listar_servicos" — o agente fica consultivo.
+  const hasCalendar = await companyHasActiveCalendar(companyId);
 
-  sections.push(
-    "FLUXO PADRÃO PARA QUALQUER PEDIDO DE ATENDIMENTO/AGENDAMENTO:\n" +
-    "1. Se o cliente pediu agendamento/consulta: USE `listar_servicos` + `verificar_disponibilidade` ou `buscar_proximo_horario` ANTES de fazer qualquer outra coisa. Nunca diga 'vou verificar' sem chamar a tool.\n" +
-    "1.1. Quando o cliente pedir um HORÁRIO ESPECÍFICO (ex: 'às 10h', 'amanhã às 14h'), use SEMPRE `verificar_disponibilidade` para a data pedida e cheque a lista de slots por profissional. NUNCA responda 'indisponível' baseado apenas em `buscar_proximo_horario` — essa tool retorna só o primeiro slot livre, não a lista completa do dia.\n" +
-    "2. Encontrou horário? Confirme em texto natural com o cliente (ex: 'Tenho às 14h amanhã, posso confirmar?'). Só depois do 'sim' do cliente, chame `criar_evento`.\n" +
-    "2.1. CRÍTICO ao chamar `criar_evento`: os argumentos `data` e `hora` devem refletir EXATAMENTE o último horário que você ofereceu por escrito e que o cliente confirmou — nunca use o de uma oferta anterior. Antes de invocar a tool, releia mentalmente sua última mensagem de oferta e copie data e hora dela. Exemplo: se você ofereceu '28/04/2026 às 12:00' e o cliente disse 'sim', passe data='2026-04-28' e hora='12:00'. Coincidência exata é obrigatória.\n" +
-    "3. `notificar_proprietario` só em emergência REAL e SE não conseguiu agendar via tools. Não notifique antes de tentar agendar.\n" +
-    "4. `transferir_para_humano` é último recurso — só quando o cliente PEDIR explicitamente, ou quando uma tool falhar e não houver alternativa. Nunca como primeira ação."
-  );
+  if (hasCalendar) {
+    sections.push(
+      "Você tem acesso a ferramentas (tools). As principais para agendamento são: " +
+      "`listar_servicos` (catálogo de serviços avulsos), `listar_pacotes` (pacotes de múltiplas sessões com desconto), " +
+      "`verificar_disponibilidade` / `buscar_proximo_horario` " +
+      "(consultar agenda), `criar_evento` (efetivamente marcar — única ferramenta de criação). " +
+      "Use também `buscar_contato`, `enviar_mensagem`, `notificar_proprietario`, " +
+      "`transferir_para_humano` e `registrar_aniversario`."
+    );
+
+    sections.push(
+      "FLUXO PADRÃO PARA QUALQUER PEDIDO DE ATENDIMENTO/AGENDAMENTO:\n" +
+      "1. Se o cliente pediu agendamento/consulta: USE `listar_servicos` + `verificar_disponibilidade` ou `buscar_proximo_horario` ANTES de fazer qualquer outra coisa. Nunca diga 'vou verificar' sem chamar a tool.\n" +
+      "1.1. Quando o cliente pedir um HORÁRIO ESPECÍFICO (ex: 'às 10h', 'amanhã às 14h'), use SEMPRE `verificar_disponibilidade` para a data pedida e cheque a lista de slots por profissional. NUNCA responda 'indisponível' baseado apenas em `buscar_proximo_horario` — essa tool retorna só o primeiro slot livre, não a lista completa do dia.\n" +
+      "2. Encontrou horário? Confirme em texto natural com o cliente (ex: 'Tenho às 14h amanhã, posso confirmar?'). Só depois do 'sim' do cliente, chame `criar_evento`.\n" +
+      "2.1. CRÍTICO ao chamar `criar_evento`: os argumentos `data` e `hora` devem refletir EXATAMENTE o último horário que você ofereceu por escrito e que o cliente confirmou — nunca use o de uma oferta anterior. Antes de invocar a tool, releia mentalmente sua última mensagem de oferta e copie data e hora dela. Exemplo: se você ofereceu '28/04/2026 às 12:00' e o cliente disse 'sim', passe data='2026-04-28' e hora='12:00'. Coincidência exata é obrigatória.\n" +
+      "3. `notificar_proprietario` só em emergência REAL e SE não conseguiu agendar via tools. Não notifique antes de tentar agendar.\n" +
+      "4. `transferir_para_humano` é último recurso — só quando o cliente PEDIR explicitamente, ou quando uma tool falhar e não houver alternativa. Nunca como primeira ação."
+    );
+  } else {
+    sections.push(
+      "Você tem acesso a ferramentas (tools). As principais: `buscar_contato`, " +
+      "`enviar_mensagem`, `notificar_proprietario`, `transferir_para_humano` e " +
+      "`registrar_aniversario`. Para informar serviços/preços reais, você pode consultar " +
+      "`listar_servicos` e `listar_pacotes` (apenas consulta)."
+    );
+
+    sections.push(
+      "**Esta empresa NÃO trabalha com agendamento** (nenhum calendário conectado). Portanto:\n" +
+      "1. NÃO ofereça marcar/agendar horário e NÃO use as ferramentas de agenda " +
+      "(`verificar_disponibilidade`, `buscar_proximo_horario`, `criar_evento`) — elas não se aplicam a esta empresa.\n" +
+      "2. Seu papel é conversar, informar, tirar dúvidas e atender o cliente de forma consultiva.\n" +
+      "3. Se o cliente perguntar por um serviço/produto ou PREÇO específico, você PODE consultar " +
+      "`listar_servicos` (e `listar_pacotes`) para responder com dados REAIS — mas NUNCA invente " +
+      "um serviço ou preço que a ferramenta não retornou. Se não houver catálogo cadastrado, " +
+      "responda com base nas informações desta configuração (FAQ, instruções abaixo).\n" +
+      "4. Se o cliente insistir em marcar um horário, explique gentilmente que o atendimento " +
+      "é feito de outra forma e, se necessário, use `transferir_para_humano`."
+    );
+  }
 
   // Importante para Llama/Groq/GPT-OSS: modelos baratos alucinam metadados
   // (pseudo-XML, parênteses com flags como "(não-fazer)", IDs internos) na
@@ -142,31 +185,37 @@ export async function buildSystemPrompt(companyId: number): Promise<string> {
   // "Progressiva", "Hidratação" para um salão que só tinha "Corte Feminino"). A regra
   // anterior ("NUNCA invente") não cobria o caso de adicionar APÓS receber o resultado.
   // Fix: regra explícita de que o resultado de listar_servicos é EXAUSTIVO — sem exceções.
-  sections.push(
-    "**Catálogo de serviços — REGRA INVIOLÁVEL:**\n" +
-    "1. SEMPRE chame `listar_servicos` antes de mencionar qualquer serviço ao cliente.\n" +
-    "2. Após receber o resultado, apresente ao cliente EXATAMENTE os serviços retornados — " +
-    "sem adicionar, inferir ou combinar outros, mesmo que você 'saiba' que este tipo de negócio " +
-    "normalmente os oferece. O resultado de `listar_servicos` é COMPLETO e EXCLUSIVO.\n" +
-    "3. Se o cliente perguntar por um serviço não retornado pela tool: ANTES de dizer 'não temos', " +
-    "chame `listar_pacotes` para verificar se existe um pacote para esse serviço. " +
-    "Só diga 'não está disponível' se NENHUM pacote cobrir o serviço pedido.\n" +
-    "4. ATENÇÃO: `listar_servicos` serve para obter nomes e IDs. Para verificar horários " +
-    "de um serviço específico use `verificar_disponibilidade` ou `buscar_proximo_horario`."
-  );
+  // Catálogo + Pacotes: a regra "SEMPRE chame listar_servicos antes de mencionar
+  // serviço" só se aplica a empresas de AGENDAMENTO (com calendário ativo). Sem
+  // calendário, a consulta a serviços/preços é opcional (já orientada no bloco
+  // "Esta empresa NÃO trabalha com agendamento" acima) — não empurramos a regra dura.
+  if (hasCalendar) {
+    sections.push(
+      "**Catálogo de serviços — REGRA INVIOLÁVEL:**\n" +
+      "1. SEMPRE chame `listar_servicos` antes de mencionar qualquer serviço ao cliente.\n" +
+      "2. Após receber o resultado, apresente ao cliente EXATAMENTE os serviços retornados — " +
+      "sem adicionar, inferir ou combinar outros, mesmo que você 'saiba' que este tipo de negócio " +
+      "normalmente os oferece. O resultado de `listar_servicos` é COMPLETO e EXCLUSIVO.\n" +
+      "3. Se o cliente perguntar por um serviço não retornado pela tool: ANTES de dizer 'não temos', " +
+      "chame `listar_pacotes` para verificar se existe um pacote para esse serviço. " +
+      "Só diga 'não está disponível' se NENHUM pacote cobrir o serviço pedido.\n" +
+      "4. ATENÇÃO: `listar_servicos` serve para obter nomes e IDs. Para verificar horários " +
+      "de um serviço específico use `verificar_disponibilidade` ou `buscar_proximo_horario`."
+    );
 
-  sections.push(
-    "**Pacotes de Serviços — ofereça como vantagem ao cliente:**\n" +
-    "1. Chame `listar_pacotes` JUNTO com `listar_servicos` ao apresentar a oferta completa da empresa.\n" +
-    "2. Se o cliente perguntar sobre um serviço que tem pacote vinculado, apresente o pacote como " +
-    "alternativa vantajosa. Exemplo: 'Também temos o Pacote 10 Sessões de Depilação Laser por R$350 " +
-    "— economia de 30% comparado a sessões avulsas!'.\n" +
-    "3. Se o cliente pede um serviço que só existe em formato de pacote: apresente o pacote " +
-    "disponível e explique que esse procedimento é oferecido exclusivamente em pacote.\n" +
-    "4. NUNCA invente pacotes — use APENAS os retornados por `listar_pacotes`.\n" +
-    "5. Pacotes são vendidos pelo administrador via CRM — informe o cliente e direcione para " +
-    "falar com um atendente caso queira comprar um pacote."
-  );
+    sections.push(
+      "**Pacotes de Serviços — ofereça como vantagem ao cliente:**\n" +
+      "1. Chame `listar_pacotes` JUNTO com `listar_servicos` ao apresentar a oferta completa da empresa.\n" +
+      "2. Se o cliente perguntar sobre um serviço que tem pacote vinculado, apresente o pacote como " +
+      "alternativa vantajosa. Exemplo: 'Também temos o Pacote 10 Sessões de Depilação Laser por R$350 " +
+      "— economia de 30% comparado a sessões avulsas!'.\n" +
+      "3. Se o cliente pede um serviço que só existe em formato de pacote: apresente o pacote " +
+      "disponível e explique que esse procedimento é oferecido exclusivamente em pacote.\n" +
+      "4. NUNCA invente pacotes — use APENAS os retornados por `listar_pacotes`.\n" +
+      "5. Pacotes são vendidos pelo administrador via CRM — informe o cliente e direcione para " +
+      "falar com um atendente caso queira comprar um pacote."
+    );
+  }
 
   if (s.agentHours) {
     sections.push(`**Horário de atendimento:**\n${s.agentHours}`);
