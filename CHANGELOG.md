@@ -7,6 +7,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Changed — Guia de deploy migrado de Contabo para Hostinger VPS KVM 4 (2026-07-11)
+
+`docs/DEPLOY_DOCKER_CONTABO.md` renomeado para `docs/DEPLOY_DOCKER_HOSTINGER.md` (git mv,
+histórico preservado) e reescrito para o plano **Hostinger VPS KVM 4** (4 vCPU AMD EPYC,
+16GB RAM, 200GB NVMe SSD). Passos Docker/Compose inalterados (é o mesmo Ubuntu+Docker por
+baixo); o que mudou é específico da Hostinger: onboarding via hPanel (escolha do template
+Ubuntu após a compra), terminal embutido no navegador como alternativa ao PowerShell/SSH,
+firewall gerenciado (hPanel → Segurança → Firewall) como camada extra ao `ufw`, e backup/
+snapshot nativo da Hostinger como complemento ao script `pg_dump` já existente. Referências
+ao arquivo atualizadas em `README.md` e `MANUAL_PLATAFORMA.md`.
+
 ### Fixed — Logs de Auditoria: dbLog() nunca era chamado em nenhuma empresa (2026-07-11)
 
 **Sintoma:** SuperAdmin reportou que a tela "Logs de Auditoria" não mostrava NENHUM

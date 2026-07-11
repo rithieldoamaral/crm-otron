@@ -5,6 +5,18 @@ Formato: Data | Decisão | Motivo | Alternativas descartadas
 
 ---
 
+## 2026-07-11 — Migração do guia de deploy: Contabo → Hostinger VPS KVM 4
+
+**Decisão:** usuário pediu segunda opinião (Claude Web) sobre hospedagem; escolheu Hostinger VPS **KVM 4** (4 vCPU AMD EPYC, 16GB RAM, 200GB NVMe SSD, 16TB banda). `docs/DEPLOY_DOCKER_CONTABO.md` renomeado (git mv, preserva histórico) para `docs/DEPLOY_DOCKER_HOSTINGER.md` e reescrito para o fluxo real da Hostinger (hPanel, terminal no navegador, firewall gerenciado, backup/snapshot nativo).
+
+**Verificado via pesquisa (não assumido):** specs do KVM 4, fluxo de setup (hPanel → VPS → Setup → template Ubuntu), onde ficam IP/credenciais (Overview → SSH Access), terminal embutido no navegador (opção sem instalar nada), firewall gerenciado (Segurança → Firewall, bloqueia tudo por padrão — precisa liberar porta 22 antes de qualquer coisa), backup nativo (Backups & Monitoramento → Snapshots & Backups).
+
+**O que NÃO mudou:** toda a parte Docker/Compose (imagens, migrations, .env, SSL Let's Encrypt) é idêntica — só o provedor de VPS por baixo mudou. Mantido o script `pg_dump` de backup granular do banco JUNTO com o backup nativo da Hostinger (granularidades diferentes, complementares).
+
+**Referências no README.md/MANUAL_PLATAFORMA.md atualizadas.** Entradas históricas do decisions_log sobre Contabo (2026-05-20) mantidas intactas — são registro de decisão daquele momento, não documentação viva.
+
+---
+
 ## 2026-07-11 — dbLog() nunca instrumentado: recurso construído mas nunca conectado
 
 **Contexto:** usuário reportou logs vazios para a empresa Bomma no painel de auditoria. Grep confirmou `dbLog()` (interface + `LOG_ACTIONS` completos) sem NENHUM call site real — nem para Bomma, nem para nenhuma empresa. É um caso de "infra construída, nunca ligada".
@@ -872,7 +884,7 @@ Legacy `services/BirthdayReminderService.ts` mantido em código (não deletado) 
 
 - `docs/RETENCAO_REVISAO_SENIOR.md` — relatório completo (~500 linhas) de findings priorizados, integração, segurança, métricas
 - `docs/RETENCAO_PRE_DEPLOY_CHECKLIST.md` — checklist sequencial 10 passos com SQL/comandos prontos + KPIs para 2 semanas pós-deploy
-- `docs/DEPLOY_DOCKER_CONTABO.md` § 10.5-10.7 — passos novos: timezone, habilitação das 5 features, smoke test
+- `docs/DEPLOY_DOCKER_HOSTINGER.md` § 10.5-10.7 — passos novos: timezone, habilitação das 5 features, smoke test
 - `docs/MANUAL_PLATAFORMA.md` § 5.3 — seção completa de usuário final explicando as 9 abas, como cada feature funciona, como começar
 
 ### Validação final

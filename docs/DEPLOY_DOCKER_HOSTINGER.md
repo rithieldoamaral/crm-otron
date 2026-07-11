@@ -1,16 +1,16 @@
-# 🚀 Deploy do CRM Otron na Contabo VPS via Docker
+# 🚀 Deploy do CRM Otron na Hostinger VPS (KVM 4) via Docker
 
 > **Tempo estimado:** 75-100 minutos (primeira vez)
-> **Pré-requisitos:** uma VPS Contabo contratada, um domínio (ex: `seudominio.com.br`) e acesso ao painel de DNS desse domínio.
+> **Pré-requisitos:** um plano Hostinger VPS **KVM 4** contratado, um domínio (ex: `seudominio.com.br`) e acesso ao painel de DNS desse domínio.
 
-Este guia leva você do zero (VPS recém-comprada) até o CRM Otron rodando em produção com:
+Este guia leva você do zero (VPS recém-contratada) até o CRM Otron rodando em produção com:
 - ✅ PostgreSQL (banco de dados)
 - ✅ Redis (cache + fila de mensagens)
 - ✅ Backend Node.js (API + WhatsApp)
 - ✅ Frontend React (interface)
 - ✅ Nginx (proxy reverso)
 - ✅ SSL/HTTPS automático (Let's Encrypt)
-- ✅ Backups automáticos do PostgreSQL
+- ✅ Backups automáticos do PostgreSQL (+ backup nativo da Hostinger, §12)
 
 ---
 
@@ -18,8 +18,8 @@ Este guia leva você do zero (VPS recém-comprada) até o CRM Otron rodando em p
 
 | Etapa | O que vai fazer | Tempo |
 |---|---|---|
-| 1 | Contratar VPS Contabo e anotar o IP | 10 min |
-| 2 | Conectar via SSH | 5 min |
+| 1 | Contratar VPS Hostinger KVM 4 + escolher template Ubuntu | 10 min |
+| 2 | Conectar via SSH (ou terminal do navegador) | 5 min |
 | 3 | Atualizar Linux + instalar Docker | 10 min |
 | 4 | Configurar firewall | 5 min |
 | 5 | Apontar domínio para a VPS | 10 min (+ até 2h propagação) |
@@ -32,21 +32,32 @@ Este guia leva você do zero (VPS recém-comprada) até o CRM Otron rodando em p
 
 ---
 
-## 1. Contratar VPS Contabo
+## 1. Contratar VPS Hostinger — plano KVM 4
 
-### Configuração recomendada
-- **Plano:** VPS S SSD (mínimo) ou VPS M SSD (recomendado)
-- **CPU:** 4 vCPU
-- **RAM:** 8 GB (mínimo); 16 GB se for atender muitas conexões WhatsApp simultâneas
-- **Disco:** 200 GB SSD
-- **Sistema operacional:** Ubuntu 22.04 LTS
-- **Região:** Estados Unidos (East) ou Europa Central (latência menor para Brasil que a Ásia)
+### Por que KVM 4
+| Especificação | KVM 4 | Por que serve |
+|---|---|---|
+| **CPU** | 4 vCPU (AMD EPYC) | Suporta múltiplas conexões WhatsApp + IA simultâneas |
+| **RAM** | 16 GB | Cada conexão WhatsApp (Baileys) consome ~200MB; 16GB dá folga real |
+| **Disco** | 200 GB NVMe SSD | NVMe é mais rápido que SSD comum — Postgres/Redis respondem melhor |
+| **Banda** | 16 TB/mês | Não é gargalo para um CRM de WhatsApp (texto + mídia moderada) |
 
-### Após a compra
-A Contabo envia um e-mail com:
-- **IP do servidor** (ex: `45.91.123.456`)
-- **Usuário:** geralmente `root`
-- **Senha:** uma senha aleatória inicial
+Acesse [hostinger.com/vps-hosting](https://www.hostinger.com/vps-hosting), escolha o plano **KVM 4** e finalize a compra.
+
+### Configuração inicial no hPanel (painel da Hostinger)
+
+Depois de comprar, a Hostinger NÃO manda a VPS pronta — você escolhe o sistema operacional na primeira vez:
+
+1. Entre no **hPanel** ([hpanel.hostinger.com](https://hpanel.hostinger.com)) com a conta que comprou o plano
+2. Menu **VPS** → clique em **Configurar** (Setup) no plano recém-comprado
+3. Escolha o template de sistema operacional: **Ubuntu 22.04 LTS** (ou 24.04 LTS, se disponível — qualquer um dos dois serve)
+4. Defina a senha de root (ou deixe a Hostinger gerar uma) e finalize
+5. Aguarde alguns minutos até o status da VPS ficar **Ativo/Running**
+
+### Onde encontrar IP e credenciais
+
+1. No hPanel, **VPS → Visão Geral (Overview) → Acesso SSH (SSH Access)**
+2. Anote: **IP do servidor** (ex: `195.200.x.x`), **usuário** (`root`) e a **senha** (se você não definiu uma própria, veja o e-mail de boas-vindas da Hostinger, que também traz esses dados)
 
 📝 **Anote esses 3 dados.** Você vai precisar deles no próximo passo.
 
@@ -54,11 +65,20 @@ A Contabo envia um e-mail com:
 
 ## 2. Conectar via SSH
 
-### No Windows (PowerShell)
+Você tem DUAS opções — escolha a que preferir:
+
+### Opção A — Terminal direto no navegador (mais fácil, sem instalar nada)
+
+1. No hPanel → **VPS → Visão Geral** → clique no botão **Terminal** (canto superior direito)
+2. Uma janela abre já logada como `root` — pronto, pode seguir os comandos deste guia direto ali
+
+> Use esta opção se quiser só validar algo rápido. Para os passos longos deste guia (colar blocos grandes de `.env`, por exemplo), a Opção B costuma ser mais confortável.
+
+### Opção B — PowerShell (Windows)
 ```powershell
-ssh root@45.91.123.456
+ssh root@195.200.x.x
 ```
-Substitua `45.91.123.456` pelo IP que você recebeu da Contabo. Quando perguntar a senha, cole a senha inicial (não vai aparecer nada no terminal enquanto digita — é normal).
+Substitua `195.200.x.x` pelo IP real da sua VPS (hPanel → SSH Access). Quando perguntar a senha, cole a senha inicial (não vai aparecer nada no terminal enquanto digita — é normal).
 
 Na primeira conexão, ele pergunta `Are you sure you want to continue connecting (yes/no)?`. Digite `yes`.
 
@@ -67,6 +87,8 @@ Na primeira conexão, ele pergunta `Are you sure you want to continue connecting
 passwd
 ```
 Digite uma senha forte (mínimo 16 caracteres com letras, números e símbolos). Anote em um gerenciador de senhas.
+
+> Você também pode trocar a senha pelo próprio hPanel (VPS → Visão Geral → Acesso SSH → "Alterar senha"), sem precisar do comando `passwd` — as duas formas têm o mesmo efeito.
 
 ---
 
@@ -128,6 +150,17 @@ To                         Action      From
 ```
 
 ⚠️ **Importante:** As portas 5432 (PostgreSQL) e 6379 (Redis) NÃO devem ficar abertas — o Docker já as mantém apenas na rede interna.
+
+### 4.1 — Camada extra: Firewall gerenciado da Hostinger (recomendado)
+
+Além do `ufw` (que roda DENTRO da VPS), a Hostinger oferece um firewall gerenciado na FRENTE da VPS (bloqueia tráfego antes mesmo de chegar ao servidor) — defesa em profundidade, e mais fácil de ajustar sem risco de se trancar para fora via SSH:
+
+1. hPanel → **VPS** → sua VPS → **Segurança → Firewall**
+2. **Adicionar Firewall** → dê um nome (ex: `otron-crm`) → Criar
+3. Adicione as regras de permissão (Accept): porta 22 (SSH), porta 80 (HTTP), porta 443 (HTTPS)
+4. Anexe o firewall à sua VPS
+
+> Por padrão o firewall da Hostinger **bloqueia tudo** que não tiver regra explícita — sem a regra de porta 22 você perde acesso SSH. Adicione as 3 regras acima antes de qualquer outra coisa.
 
 ---
 
@@ -652,6 +685,17 @@ Adicione a linha (backup às 3h da manhã, todo dia):
 ```
 0 3 * * * /opt/crm_otron/backup.sh
 ```
+
+### Camada extra: Backup nativo da Hostinger (complementar, recomendado)
+
+O script acima faz backup GRANULAR do banco (só os dados). A Hostinger também oferece backup da VPS INTEIRA (sistema operacional + arquivos + configuração) — útil para restaurar tudo de uma vez se o servidor inteiro tiver problema:
+
+- **Backups automáticos:** semanais (e diários, se habilitado) — até 4 retidos, guardados fora da VPS
+- **Snapshots manuais:** captura sob demanda antes de uma mudança arriscada (ex: antes de atualizar o sistema) — expira em 1 dia
+
+Acesse em: hPanel → VPS → sua VPS → **Backups & Monitoramento → Snapshots & Backups**.
+
+> Os dois se complementam: o `pg_dump` (acima) permite restaurar só o banco em qualquer lugar; o backup da Hostinger permite reconstruir a VPS inteira rapidamente. Mantenha os dois ativos.
 
 ---
 

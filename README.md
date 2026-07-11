@@ -39,7 +39,7 @@ CRM completo para pequenas e médias empresas que querem automatizar o atendimen
 ## 🚀 Quick start
 
 ### Para deploy em produção
-👉 **Leia o guia completo:** [`docs/DEPLOY_DOCKER_CONTABO.md`](docs/DEPLOY_DOCKER_CONTABO.md)
+👉 **Leia o guia completo:** [`docs/DEPLOY_DOCKER_HOSTINGER.md`](docs/DEPLOY_DOCKER_HOSTINGER.md)
 
 Resumo (5 comandos):
 ```bash
@@ -79,7 +79,7 @@ Acesse `http://localhost:3000` (login inicial: `admin@admin.com` / `123456` — 
 
 | Documento | O que tem |
 |---|---|
-| [`docs/DEPLOY_DOCKER_CONTABO.md`](docs/DEPLOY_DOCKER_CONTABO.md) | Deploy passo-a-passo na Contabo VPS com Docker, SSL, backups e rotação de segredos |
+| [`docs/DEPLOY_DOCKER_HOSTINGER.md`](docs/DEPLOY_DOCKER_HOSTINGER.md) | Deploy passo-a-passo na Hostinger VPS (KVM 4) com Docker, SSL, backups e rotação de segredos |
 | [`docs/MANUAL_PLATAFORMA.md`](docs/MANUAL_PLATAFORMA.md) | Manual completo de uso (cada aba, cada função, Agente IA, pagamentos, super admin) |
 | [`CLAUDE.md`](CLAUDE.md) | Diretrizes de arquitetura, TDD, segurança e padrões de código (para devs) |
 | [`MEMORY.md`](MEMORY.md) | Estado completo do projeto: módulos, decisões, tech debt — ponto de partida obrigatório para qualquer sessão de dev/IA |

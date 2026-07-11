@@ -48,7 +48,7 @@ CRM Otron é um sistema de **atendimento multicanal via WhatsApp** com inteligê
 
 ## 2. Primeira configuração
 
-> Pré-requisito: o sistema já está instalado (ver `DEPLOY_DOCKER_CONTABO.md`).
+> Pré-requisito: o sistema já está instalado (ver `DEPLOY_DOCKER_HOSTINGER.md`).
 
 ### Passo 1 — Login inicial
 1. Acesse `https://crm.seudominio.com.br`
@@ -357,7 +357,7 @@ A página tem **9 abas**, divididas em 3 grupos:
 - **Cupons**: resumo agregado de cupons gerados pelo módulo (todos os tipos: aniversário, fidelidade, reativação, indicação)
 
 #### Como começar
-1. Habilite as features no banco (ver `DEPLOY_DOCKER_CONTABO.md` §10.6) — vêm DESLIGADAS por padrão
+1. Habilite as features no banco (ver `DEPLOY_DOCKER_HOSTINGER.md` §10.6) — vêm DESLIGADAS por padrão
 2. Configure horários de disparo conforme seu fuso (default: 09h, 10h e 11h BR)
 3. Personalize templates de mensagem com variáveis `{{name}}`, `{{coupon}}`, `{{dias}}`, `{{milestone}}`, `{{amigo}}`, `{{desconto}}`
 4. Marque uma etiqueta como "Venda Concluída" (em Etiquetas → editar tag → checkbox) — assim o Kanban registra automaticamente os atendimentos finalizados como serviço
@@ -633,7 +633,7 @@ Backups do banco de dados + arquivos do sistema.
 
 **Progresso:** mostra etapas (preparando → banco → backend → frontend → comprimindo).
 
-⚠️ **Recomendado:** complementar com o backup automático via cron (ver `DEPLOY_DOCKER_CONTABO.md` seção "backup").
+⚠️ **Recomendado:** complementar com o backup automático via cron (ver `DEPLOY_DOCKER_HOSTINGER.md` seção "backup").
 
 ### 8.3 Logs de Auditoria `/logs`
 
@@ -973,7 +973,7 @@ R: Só se você conectar via OAuth. A conta conectada é a que vai aparecer nos 
 R: Sim, mas o horário de atendimento da fila é configurado em fuso fixo do servidor. Documente para os atendentes.
 
 **P: Como migrar para outro servidor?**
-R: 1) Faça backup (SISTEMA → Backups). 2) Suba a stack no novo servidor (DEPLOY_DOCKER_CONTABO.md). 3) Restaure o dump: `docker compose exec postgres psql -U otron_user -d otron_db < backup.sql`.
+R: 1) Faça backup (SISTEMA → Backups). 2) Suba a stack no novo servidor (DEPLOY_DOCKER_HOSTINGER.md). 3) Restaure o dump: `docker compose exec postgres psql -U otron_user -d otron_db < backup.sql`.
 
 **P: Os clientes sabem que estão falando com IA?**
 R: Por padrão não. Você pode configurar o prompt para sempre identificar (ex: "Sou a Sofia, assistente virtual da empresa X").
@@ -997,7 +997,7 @@ R: Confira em CONFIGURAÇÕES → Configurações → Agente IA → aba "Secret�
 
 ## 📞 Suporte
 
-- **Documentação técnica:** `docs/DEPLOY_DOCKER_CONTABO.md`
+- **Documentação técnica:** `docs/DEPLOY_DOCKER_HOSTINGER.md`
 - **Decisões arquiteturais:** `decisions_log.md`
 - **Diretrizes de desenvolvimento:** `CLAUDE.md`
 
