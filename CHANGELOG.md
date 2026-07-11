@@ -7,6 +7,43 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed — Logs de Auditoria: dbLog() nunca era chamado em nenhuma empresa (2026-07-11)
+
+**Sintoma:** SuperAdmin reportou que a tela "Logs de Auditoria" não mostrava NENHUM
+registro para a empresa Bomma (id 2), mesmo após semanas de teste ativo.
+
+**Causa-raiz (grep confirmou):** `dbLog()` (em `SystemLogService/dbLogger.ts`) tinha
+uma interface completa e um conjunto de `LOG_ACTIONS` prontos (login, logout, CRUD de
+usuário, tickets, settings, empresa, backup), mas **zero call sites reais** em todo o
+codebase — só era referenciado por si mesmo e pelo controller que lê os logs de volta.
+Ou seja: o recurso foi construído (model, migration, controller, página) mas nunca
+instrumentado nos pontos de ação. Isso não era um problema só da empresa 2 — **nenhuma
+empresa jamais teve um log gravado**.
+
+**Fix:** instrumentado `dbLog()` nos pontos mais críticos para LGPD/auditoria:
+- [SessionController.ts](backend/src/controllers/SessionController.ts): `user.login` / `user.logout`
+- [UserController.ts](backend/src/controllers/UserController.ts): `user.created` / `user.updated` / `user.deleted`
+- [SettingController.ts](backend/src/controllers/SettingController.ts): `setting.updated` — o
+  valor de chaves sensíveis (API keys/tokens) é **substituído por um placeholder** antes
+  de logar, via novo `isSensitiveKey()` em [FilterSensitiveSettings.ts](backend/src/helpers/FilterSensitiveSettings.ts)
+  (reuso do padrão já usado para não vazar segredo em resposta HTTP — agora também não
+  vaza em log de auditoria)
+- [CompanyController.ts](backend/src/controllers/CompanyController.ts): `company.created` /
+  `company.updated` / `company.deleted` (nova constante `COMPANY_DELETED` em `LOG_ACTIONS`)
+
+10 testes TDD novos (`SessionController.spec.ts`, `UserController.spec.ts`,
+`SettingController.spec.ts`, `CompanyController.spec.ts`). `tsc` limpo.
+
+**Tech debt registrado (fora do escopo desta correção):** `ticket.closed/reopened/transferred`
+e `backup.created` continuam com a constante pronta em `LOG_ACTIONS` mas sem call site —
+próximo passo natural quando houver necessidade de auditar esses fluxos.
+
+### Added — Filtro de empresa por nome (dropdown) nos Logs de Auditoria (2026-07-11)
+
+O filtro "ID da Empresa" (campo numérico, exigia decorar o ID) virou um dropdown com o
+**nome** de cada empresa cadastrada, populado via `GET /companies/list` (já existente,
+super-admin only). [SystemLogs/index.js](frontend/src/pages/SystemLogs/index.js).
+
 ### Changed — Tier 4: cleanup/higiene sem mudança de comportamento (2026-07-05)
 
 **ITEM A — `console.log`/`console.error` de debug → `logger` (pino).** Em

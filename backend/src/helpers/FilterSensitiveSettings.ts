@@ -37,3 +37,15 @@ export function filterSensitiveSettings<T extends SettingRow>(
   if (isAdmin) return settings;
   return settings.filter(s => !SENSITIVE_KEY_PATTERN.test(s.key));
 }
+
+/**
+ * Indica se uma chave de Setting é sensível (API key/token/secret/password).
+ * Reusado pelo log de auditoria (SettingController) para nunca gravar o VALOR
+ * de uma chave sensível em `details` — só o nome da chave alterada.
+ *
+ * @param key - nome da chave de Setting
+ * @returns true se a chave é sensível
+ */
+export function isSensitiveKey(key: string): boolean {
+  return SENSITIVE_KEY_PATTERN.test(key);
+}

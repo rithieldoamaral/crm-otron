@@ -15,7 +15,8 @@ import UpdateSettingService from "../services/SettingServices/UpdateSettingServi
 import ListSettingsService from "../services/SettingServices/ListSettingsService";
 import ShowSettingsService from "../services/SettingServices/ShowSettingsService";
 import { invalidateCompanyCache } from "../services/AgentService/settingsCache";
-import { filterSensitiveSettings } from "../helpers/FilterSensitiveSettings";
+import { filterSensitiveSettings, isSensitiveKey } from "../helpers/FilterSensitiveSettings";
+import { dbLog, LOG_ACTIONS } from "../services/SystemLogService/dbLogger";
 
 const SUPER_ADMIN_COMPANY_ID = Number(process.env.SUPER_ADMIN_COMPANY_ID || 1);
 
@@ -78,6 +79,17 @@ export const update = async (
   io.to(`company-${targetCompanyId}-mainchannel`).emit(`company-${targetCompanyId}-settings`, {
     action: "update",
     setting
+  });
+
+  // Auditoria: NUNCA grava o valor de chaves sensíveis (API keys/tokens) no log,
+  // só o nome da chave alterada — evita vazar segredo num registro de auditoria.
+  dbLog({
+    action: LOG_ACTIONS.SETTING_UPDATED,
+    companyId: targetCompanyId,
+    userId: +userId,
+    entity: "Setting",
+    details: { key, value: isSensitiveKey(key) ? "(valor sensível oculto)" : value },
+    req
   });
 
   return res.status(200).json(setting);

@@ -237,6 +237,7 @@ const SystemLogs = () => {
   const [logs, setLogs] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [companies, setCompanies] = useState([]);
 
   // Filtros
   const [companyId, setCompanyId] = useState("");
@@ -273,6 +274,19 @@ const SystemLogs = () => {
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
+
+  // Carrega a lista de empresas uma vez, para o dropdown de filtro (evita o
+  // usuário ter que decorar/digitar o ID numérico da empresa).
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await api.get("/companies/list");
+        setCompanies(data);
+      } catch (err) {
+        toast.error("Erro ao carregar lista de empresas.");
+      }
+    })();
+  }, []);
 
   // Reset de página ao mudar filtros
   const handleFilterChange = (setter) => (e) => {
@@ -337,16 +351,21 @@ const SystemLogs = () => {
       <Paper className={classes.filterPaper} elevation={1}>
         <Grid container spacing={2} alignItems="flex-end">
           <Grid item className={classes.filterField}>
-            <TextField
-              label="ID da Empresa"
-              type="number"
-              variant="outlined"
-              size="small"
-              fullWidth
-              value={companyId}
-              onChange={handleFilterChange(setCompanyId)}
-              placeholder="Ex.: 1"
-            />
+            <FormControl variant="outlined" size="small" fullWidth>
+              <InputLabel>Empresa</InputLabel>
+              <Select
+                value={companyId}
+                onChange={handleFilterChange(setCompanyId)}
+                label="Empresa"
+              >
+                <MenuItem value="">Todas as empresas</MenuItem>
+                {companies.map((c) => (
+                  <MenuItem key={c.id} value={c.id}>
+                    {c.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Grid>
           <Grid item className={classes.filterField}>
             <FormControl variant="outlined" size="small" fullWidth>

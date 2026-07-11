@@ -92,6 +92,7 @@ export const LOG_ACTIONS = {
   // Sistema
   COMPANY_CREATED: "company.created",
   COMPANY_UPDATED: "company.updated",
+  COMPANY_DELETED: "company.deleted",
   BACKUP_CREATED: "backup.created",
 } as const;
 

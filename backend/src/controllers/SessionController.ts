@@ -7,6 +7,7 @@ import { SendRefreshToken } from "../helpers/SendRefreshToken";
 import { RefreshTokenService } from "../services/AuthServices/RefreshTokenService";
 import FindUserFromToken from "../services/AuthServices/FindUserFromToken";
 import User from "../models/User";
+import { dbLog, LOG_ACTIONS } from "../services/SystemLogService/dbLogger";
 
 export const store = async (req: Request, res: Response): Promise<Response> => {
   const { email, password } = req.body;
@@ -26,6 +27,17 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
       email: serializedUser.email,
       companyId: serializedUser.companyId
     }
+  });
+
+  // Auditoria (2026-07-11): dbLog existia mas nunca era chamado — a tela
+  // "Logs de Auditoria" sempre ficava vazia para qualquer empresa.
+  dbLog({
+    action: LOG_ACTIONS.USER_LOGIN,
+    companyId: serializedUser.companyId,
+    userId: serializedUser.id,
+    entity: "User",
+    entityId: serializedUser.id,
+    req
   });
 
   return res.status(200).json({
@@ -70,9 +82,18 @@ export const remove = async (
   req: Request,
   res: Response
 ): Promise<Response> => {
-  const { id } = req.user;
+  const { id, companyId } = req.user;
   const user = await User.findByPk(id);
   await user.update({ online: false });
+
+  dbLog({
+    action: LOG_ACTIONS.USER_LOGOUT,
+    companyId,
+    userId: +id,
+    entity: "User",
+    entityId: +id,
+    req
+  });
 
   res.clearCookie("jrt");
 

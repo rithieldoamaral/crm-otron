@@ -17,6 +17,7 @@ import ShowCompanyService from "../services/CompanyService/ShowCompanyService";
 import ShowPlanCompanyService from "../services/CompanyService/ShowPlanCompanyService";
 import UpdateCompanyService from "../services/CompanyService/UpdateCompanyService";
 import UpdateSchedulesService from "../services/CompanyService/UpdateSchedulesService";
+import { dbLog, LOG_ACTIONS } from "../services/SystemLogService/dbLogger";
 
 const publicFolder = path.resolve(__dirname, "..", "..", "public");
 
@@ -76,6 +77,14 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
 
   const company = await CreateCompanyService(newCompany);
 
+  dbLog({
+    action: LOG_ACTIONS.COMPANY_CREATED,
+    userId: req.user?.id ? +req.user.id : undefined,
+    entity: "Company",
+    entityId: company.id,
+    req
+  });
+
   return res.status(200).json(company);
 };
 
@@ -112,6 +121,14 @@ export const update = async (
   const { id } = req.params;
 
   const company = await UpdateCompanyService({ id, ...companyData });
+
+  dbLog({
+    action: LOG_ACTIONS.COMPANY_UPDATED,
+    userId: req.user?.id ? +req.user.id : undefined,
+    entity: "Company",
+    entityId: +id,
+    req
+  });
 
   return res.status(200).json(company);
 };
@@ -153,6 +170,13 @@ export const remove = async (
 
   const company = await DeleteCompanyService(id);
 
+  dbLog({
+    action: LOG_ACTIONS.COMPANY_DELETED,
+    userId: +userId,
+    entity: "Company",
+    entityId: +id,
+    req
+  });
 
   //fs.remove(`${publicFolder}/company${id}/`);
 

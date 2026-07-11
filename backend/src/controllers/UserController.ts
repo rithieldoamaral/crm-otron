@@ -11,6 +11,7 @@ import ShowUserService from "../services/UserServices/ShowUserService";
 import DeleteUserService from "../services/UserServices/DeleteUserService";
 import SimpleListService from "../services/UserServices/SimpleListService";
 import User from "../models/User";
+import { dbLog, LOG_ACTIONS } from "../services/SystemLogService/dbLogger";
 
 type IndexQuery = {
   searchParam: string;
@@ -85,6 +86,15 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
     user
   });
 
+  dbLog({
+    action: LOG_ACTIONS.USER_CREATED,
+    companyId: userCompanyId,
+    userId: req.user?.id ? +req.user.id : undefined,
+    entity: "User",
+    entityId: user.id,
+    req
+  });
+
   return res.status(200).json(user);
 };
 
@@ -118,6 +128,15 @@ export const update = async (
     user
   });
 
+  dbLog({
+    action: LOG_ACTIONS.USER_UPDATED,
+    companyId,
+    userId: +requestUserId,
+    entity: "User",
+    entityId: user.id,
+    req
+  });
+
   return res.status(200).json(user);
 };
 
@@ -138,6 +157,15 @@ export const remove = async (
   io.to(`company-${companyId}-mainchannel`).emit(`company-${companyId}-user`, {
     action: "delete",
     userId
+  });
+
+  dbLog({
+    action: LOG_ACTIONS.USER_DELETED,
+    companyId,
+    userId: +req.user.id,
+    entity: "User",
+    entityId: +userId,
+    req
   });
 
   return res.status(200).json({ message: "User deleted" });

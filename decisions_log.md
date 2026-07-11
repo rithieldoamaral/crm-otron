@@ -5,6 +5,16 @@ Formato: Data | Decisão | Motivo | Alternativas descartadas
 
 ---
 
+## 2026-07-11 — dbLog() nunca instrumentado: recurso construído mas nunca conectado
+
+**Contexto:** usuário reportou logs vazios para a empresa Bomma no painel de auditoria. Grep confirmou `dbLog()` (interface + `LOG_ACTIONS` completos) sem NENHUM call site real — nem para Bomma, nem para nenhuma empresa. É um caso de "infra construída, nunca ligada".
+
+**Decisão:** instrumentar os pontos de maior valor para LGPD/auditoria primeiro (login/logout, CRUD usuário, update setting, CRUD empresa), em vez de instrumentar tudo de uma vez. `ticket.closed/reopened/transferred` e `backup.created` ficam com constante pronta mas sem call site — próximo passo quando houver necessidade real.
+
+**Lição (anti-repetição):** ao herdar/revisar uma feature com "infraestrutura pronta" (model + controller + página), sempre verificar com grep se as funções de escrita são REALMENTE chamadas em algum lugar — não assumir que existir = funcionar. Esse padrão ("construído mas nunca conectado") já se repetiu neste projeto.
+
+---
+
 ## 2026-07-05 — Tier 3 (escala): ITEM D step 4 (GROUP BY serviceId) adiado
 
 **Contexto:** Fase 7 adiciona FK `serviceId` (nullable) em `ServiceHistory` para
