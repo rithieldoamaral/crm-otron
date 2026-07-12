@@ -7,6 +7,25 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Added — Rastreamento de erros por empresa + guia de instalação do GlitchTip (2026-07-12)
+
+O SDK do Sentry já era usado em 51 pontos do backend (`Sentry.captureException`), mas
+nenhum erro era marcado por cliente — ficariam todos misturados no mesmo painel. Agora o
+middleware [isAuth.ts](backend/src/middleware/isAuth.ts) marca o escopo do Sentry com
+`companyId`/`userId` logo após decodificar o token JWT; como o Sentry propaga o escopo
+para toda a requisição, qualquer erro capturado depois (nos 51 pontos existentes, sem
+precisar tocar em nenhum deles) já sai identificado por empresa. 3 testes novos
+(`isAuth.spec.ts`), tsc limpo.
+
+Adicionado também `docker-compose.glitchtip.yml` (stack separado, não interfere no CRM) e
+uma nova seção "Rastreamento de Erros" no
+[guia de deploy](docs/DEPLOY_DOCKER_HOSTINGER.md) com o passo a passo completo de
+instalação na VPS — GlitchTip é open source e self-hosted (sem custo de licença), 100%
+compatível com o SDK do Sentry já usado no código, então nenhuma mudança de código é
+necessária para trocar de provedor: basta preencher `SENTRY_DSN` no `.env.production`.
+Enquanto esse campo estiver vazio (padrão), o rastreamento fica desativado — recurso
+totalmente opcional.
+
 ### Added — Gate de agendamento por calendário ativo no Agente de Atendimento (2026-07-11)
 
 Nem todo comércio trabalha com hora marcada (loja, delivery, prestador sem agenda). O

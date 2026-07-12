@@ -29,6 +29,7 @@ Este guia leva você do zero (VPS recém-contratada) até o CRM Otron rodando em
 | 9 | Subir os containers | 10 min |
 | 10 | Criar primeiro super admin + migrations | 5 min |
 | 11 | Configurar Provedor de IA (super admin) e admin da Secretária | 5 min |
+| 13 *(opcional)* | Instalar GlitchTip (rastreamento de erros) | 20 min |
 
 ---
 
@@ -247,6 +248,11 @@ MAIL_USER=contato@seudominio.com.br
 MAIL_PASS=SENHA_DA_CAIXA_DE_EMAIL
 MAIL_FROM=Recuperar Senha <contato@seudominio.com.br>
 MAIL_PORT=465
+
+# ─── Rastreamento de erros (opcional) ────────────────
+# Deixe em branco por enquanto. Preencha depois de instalar o GlitchTip
+# (seção "Rastreamento de Erros" mais abaixo neste guia).
+SENTRY_DSN=
 ```
 
 ### Gerar os 2 segredos JWT
@@ -696,6 +702,87 @@ O script acima faz backup GRANULAR do banco (só os dados). A Hostinger também 
 Acesse em: hPanel → VPS → sua VPS → **Backups & Monitoramento → Snapshots & Backups**.
 
 > Os dois se complementam: o `pg_dump` (acima) permite restaurar só o banco em qualquer lugar; o backup da Hostinger permite reconstruir a VPS inteira rapidamente. Mantenha os dois ativos.
+
+---
+
+## 🔍 Rastreamento de Erros (GlitchTip, opcional mas recomendado)
+
+**O que é:** quando algo falha no CRM (ex: erro ao enviar mensagem, falha ao conectar no Google Calendário), o sistema hoje só imprime isso no console do servidor — some quando o processo reinicia. O GlitchTip é um software **open source e gratuito** (você mesmo hospeda, sem mensalidade) que guarda cada erro com todos os detalhes técnicos (o que aconteceu, em qual tela, qual cliente/empresa, linha do código), agrupa erros repetidos num só lugar, e te avisa por e-mail quando aparece um erro novo.
+
+O código do CRM já está pronto pra isso — ele só precisa saber PARA ONDE mandar os erros (o "DSN"). Enquanto o campo `SENTRY_DSN` estiver vazio no `.env.production`, nada disso roda; é 100% opcional.
+
+### 13.1 — Criar o arquivo de senhas do GlitchTip
+
+```bash
+cd /opt/crm_otron
+nano .env.glitchtip
+```
+Cole (gere as senhas/segredo com `openssl rand -base64 32`, uma vez para cada linha marcada):
+```env
+GLITCHTIP_DB_USER=glitchtip_user
+GLITCHTIP_DB_PASS=COLOQUE_SENHA_FORTE_AQUI
+GLITCHTIP_DB_NAME=glitchtip_db
+GLITCHTIP_SECRET_KEY=COLE_AQUI_UM_SEGREDO_GERADO
+GLITCHTIP_DOMAIN=https://errors.seudominio.com.br
+GLITCHTIP_EMAIL_FROM=glitchtip@seudominio.com.br
+```
+> Use senhas diferentes das do banco principal do CRM — são dois bancos separados.
+
+### 13.2 — Subir os containers do GlitchTip
+
+```bash
+docker compose -f docker-compose.glitchtip.yml --env-file .env.glitchtip up -d
+```
+Isso sobe 5 containers: banco e fila próprios do GlitchTip, o painel web e o worker que processa os erros. Não mexe em nada do CRM já rodando.
+
+### 13.3 — Apontar um subdomínio e gerar SSL (igual fizemos para o CRM)
+
+1. No painel do seu domínio, crie um registro DNS tipo **A** apontando `errors.seudominio.com.br` para o IP da VPS (mesmo processo da seção 5).
+2. Copie o arquivo de exemplo do nginx:
+   ```bash
+   cp nginx/sites/glitchtip.conf.example nginx/sites/glitchtip.conf
+   nano nginx/sites/glitchtip.conf
+   ```
+   Substitua `SEU_DOMINIO.com.br` pelo seu domínio real (igual fez em `crm.conf`).
+3. Gere o certificado SSL para esse novo subdomínio (mesmo comando da seção 8.3, trocando o domínio):
+   ```bash
+   docker compose -f docker-compose.prod.yml run --rm certbot certonly \
+     --webroot -w /var/www/certbot \
+     -d errors.seudominio.com.br
+   ```
+4. Reinicie o nginx do CRM para carregar o novo site:
+   ```bash
+   docker compose -f docker-compose.prod.yml restart nginx
+   ```
+
+### 13.4 — Criar sua conta de administrador do GlitchTip
+
+```bash
+docker compose -f docker-compose.glitchtip.yml --env-file .env.glitchtip \
+  exec glitchtip_web ./manage.py createsuperuser
+```
+Siga as perguntas (e-mail e senha). Depois acesse `https://errors.seudominio.com.br` e faça login.
+
+### 13.5 — Criar o projeto e pegar o DSN
+
+1. Dentro do GlitchTip, crie uma **Organização** (ex: "Otron CRM") e um **Projeto** (ex: "backend", plataforma "Node.js Express").
+2. O GlitchTip mostra um **DSN** — algo como `https://abc123@errors.seudominio.com.br/1`. Copie esse valor.
+3. Cole em `.env.production` do CRM:
+   ```env
+   SENTRY_DSN=https://abc123@errors.seudominio.com.br/1
+   ```
+4. Reinicie o backend do CRM:
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d --build backend
+   ```
+
+A partir daqui, qualquer erro do CRM aparece no painel do GlitchTip, já identificado por empresa/cliente (usamos o `companyId` como marcação — ver `decisions_log.md`, entrada sobre rastreamento de erros).
+
+### 13.6 — Testar que está funcionando
+
+Force um erro proposital (ex: peça pra IA marcar um horário com o Google Calendário desconectado, ou tente enviar uma mensagem com o WhatsApp desconectado) e veja se ele aparece em `https://errors.seudominio.com.br` em poucos segundos.
+
+> 💾 **Backup:** o banco do GlitchTip (`glitchtip_postgres_data`) guarda o histórico de erros. Se quiser, adicione uma segunda linha no script de backup da seção anterior fazendo `pg_dump` desse banco também — não é crítico como o banco principal do CRM (perder o histórico de erros não afeta clientes), mas é barato de manter.
 
 ---
 

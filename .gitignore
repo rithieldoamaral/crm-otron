@@ -9,12 +9,14 @@
 .env.production
 .env.development
 .env.staging
+.env.glitchtip
 .env.*.local
 **/.env
 **/.env.local
 **/.env.production
 **/.env.development
 **/.env.staging
+**/.env.glitchtip
 **/.env.*.local
 # Permite o template público
 !**/.env.example

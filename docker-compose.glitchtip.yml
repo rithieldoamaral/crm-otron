@@ -1,0 +1,112 @@
+# ════════════════════════════════════════════════════════════════════
+# GlitchTip — Rastreamento de erros (self-hosted, compatível com Sentry)
+# ════════════════════════════════════════════════════════════════════
+# Stack SEPARADO do CRM (não interfere no docker-compose.prod.yml).
+# Sobe 5 serviços: postgres próprio, redis próprio, web, worker, migrate.
+#
+# Uso:
+#   1. Copie e edite o arquivo .env.glitchtip (veja .env.glitchtip.example)
+#   2. docker compose -f docker-compose.glitchtip.yml --env-file .env.glitchtip up -d
+#   3. Acesse http://SEU_DOMINIO:8000 (ou configure um subdomínio no nginx,
+#      ver seção "Rastreamento de Erros" do guia de deploy)
+#
+# Depois de criar sua conta/organização/projeto no GlitchTip, copie o DSN
+# gerado e cole em SENTRY_DSN no .env.production do backend do CRM.
+# ════════════════════════════════════════════════════════════════════
+
+version: '3.8'
+
+services:
+
+  # ── PostgreSQL do GlitchTip (separado do banco do CRM) ─────────────
+  glitchtip_postgres:
+    image: postgres:15-alpine
+    container_name: glitchtip_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${GLITCHTIP_DB_USER}
+      POSTGRES_PASSWORD: ${GLITCHTIP_DB_PASS}
+      POSTGRES_DB: ${GLITCHTIP_DB_NAME}
+    volumes:
+      - glitchtip_postgres_data:/var/lib/postgresql/data
+    networks:
+      - glitchtip_net
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${GLITCHTIP_DB_USER} -d ${GLITCHTIP_DB_NAME}"]
+      interval: 10s
+      retries: 5
+
+  # ── Redis do GlitchTip (fila de processamento) ─────────────────────
+  glitchtip_redis:
+    image: redis:7-alpine
+    container_name: glitchtip_redis
+    restart: unless-stopped
+    volumes:
+      - glitchtip_redis_data:/data
+    networks:
+      - glitchtip_net
+    expose:
+      - "6379"
+
+  # ── Migrations + criação do 1º superusuário (roda uma vez e sai) ───
+  glitchtip_migrate:
+    image: glitchtip/glitchtip:latest
+    container_name: glitchtip_migrate
+    depends_on:
+      glitchtip_postgres:
+        condition: service_healthy
+    environment: &glitchtip_env
+      DATABASE_URL: postgres://${GLITCHTIP_DB_USER}:${GLITCHTIP_DB_PASS}@glitchtip_postgres:5432/${GLITCHTIP_DB_NAME}
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
+      REDIS_URL: redis://glitchtip_redis:6379/0
+      PORT: 8000
+      EMAIL_URL: ${GLITCHTIP_EMAIL_URL:-consolemail://}
+      GLITCHTIP_DOMAIN: ${GLITCHTIP_DOMAIN}
+      DEFAULT_FROM_EMAIL: ${GLITCHTIP_EMAIL_FROM:-glitchtip@example.com}
+      CELERY_WORKER_AUTOSCALE: "1,3"
+      ENABLE_OPEN_USER_REGISTRATION: "false"
+    command: ./manage.py migrate
+    networks:
+      - glitchtip_net
+
+  # ── Web (painel + API que recebe os erros) ─────────────────────────
+  glitchtip_web:
+    image: glitchtip/glitchtip:latest
+    container_name: glitchtip_web
+    restart: unless-stopped
+    depends_on:
+      glitchtip_migrate:
+        condition: service_completed_successfully
+    environment: *glitchtip_env
+    ports:
+      - "8000:8000"
+    networks:
+      - glitchtip_net
+      - otron_net
+
+  # ── Worker (processa e agrupa os erros recebidos) ───────────────────
+  glitchtip_worker:
+    image: glitchtip/glitchtip:latest
+    container_name: glitchtip_worker
+    restart: unless-stopped
+    depends_on:
+      glitchtip_migrate:
+        condition: service_completed_successfully
+    environment: *glitchtip_env
+    command: ./bin/run-celery-with-beat.sh
+    networks:
+      - glitchtip_net
+
+volumes:
+  glitchtip_postgres_data:
+  glitchtip_redis_data:
+
+networks:
+  glitchtip_net:
+    driver: bridge
+  # Rede compartilhada com o CRM (otron_net), criada pelo docker-compose.prod.yml.
+  # Necessária para o nginx do CRM conseguir rotear um subdomínio até o GlitchTip.
+  otron_net:
+    external: true

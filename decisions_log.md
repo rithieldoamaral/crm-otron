@@ -5,6 +5,22 @@ Formato: Data | Decisão | Motivo | Alternativas descartadas
 
 ---
 
+## 2026-07-12 — Rastreamento de erros: GlitchTip self-hosted em vez de Sentry SaaS
+
+**Contexto:** usuário perguntou se o backend registra erros "de forma otimizada, mostrando o porquê da falha, para todos os clientes". Investigação encontrou o SDK `@sentry/node` já integrado em 51 pontos do código (`Sentry.captureException`) e um handler global de erros no Express — mas `SENTRY_DSN` nunca foi definido em nenhum `.env`, ou seja, todo esse código captura erros e os descarta silenciosamente (SDK em modo no-op sem DSN). Mais um caso do padrão "infra construída, nunca ligada" (ver entrada anterior sobre `dbLog()`).
+
+**Decisão:** oferecidas 3 opções (Sentry SaaS gratuito, GlitchTip self-hosted, ou não fazer nada agora). Usuário escolheu **GlitchTip self-hosted** — open source, compatível com o SDK do Sentry (mesmo protocolo/DSN), sem mensalidade, rodando na própria VPS.
+
+**Por que não precisou tocar nos 51 call sites:** em vez de marcar `companyId` em cada `Sentry.captureException()` espalhado pelo código, a marcação foi centralizada em `isAuth.ts` (middleware por onde toda requisição autenticada passa) — `Sentry.setTag("companyId", ...)` logo após decodificar o JWT. O Sentry propaga esse escopo para toda a requisição, então qualquer captura de erro feita depois (nos 51 pontos já existentes) sai automaticamente marcada por empresa, sem precisar editar cada um.
+
+**Escopo entregue nesta sessão:** (1) código de marcação por `companyId`/`userId` em `isAuth.ts` com 3 testes; (2) `docker-compose.glitchtip.yml` (stack isolado — banco/redis próprios, não compartilha com o CRM); (3) `nginx/sites/glitchtip.conf.example` (subdomínio `errors.seudominio.com.br` com SSL, mesmo padrão do `crm.conf`); (4) seção "Rastreamento de Erros" no `DEPLOY_DOCKER_HOSTINGER.md` com passo a passo leigo completo; (5) `.env.glitchtip.example` + entradas no `.gitignore`.
+
+**O que NÃO foi feito agora (deliberado):** a instalação real do GlitchTip na VPS. Usuário pediu para "planejar e informar como instalar no futuro" — ainda não migrou para a Hostinger. `SENTRY_DSN` fica vazio no `.env.example`/`.env.production` até lá; enquanto vazio, o SDK permanece em no-op (nenhuma mudança de comportamento hoje).
+
+**Alternativa descartada:** log simples em arquivo (redirecionar o `pino` pra um arquivo na VPS, sem software novo) foi a primeira recomendação dada — mais barata e suficiente pro volume atual de clientes. Usuário preferiu o caminho open-source/self-hosted mesmo assim, optando por robustez (agrupamento de erros repetidos, alertas automáticos) em vez da solução mínima.
+
+---
+
 ## 2026-07-11 — Calendário ativo como sinal de "empresa faz agendamento"
 
 **Contexto:** nem todo comércio trabalha com hora marcada. A regra dura "SEMPRE chame listar_servicos" + fluxo de agendamento eram sempre injetados, fazendo o agente empurrar agendamento mesmo para quem não agenda.

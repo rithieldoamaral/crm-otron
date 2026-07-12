@@ -1,5 +1,6 @@
 import { verify } from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
+import * as Sentry from "@sentry/node";
 import { logger } from "../utils/logger";
 import AppError from "../errors/AppError";
 import authConfig from "../config/auth";
@@ -30,6 +31,12 @@ const isAuth = (req: Request, res: Response, next: NextFunction): void => {
       profile,
       companyId
     };
+
+    // Marca o escopo do Sentry com companyId/userId: qualquer erro capturado
+    // depois disso, na mesma requisição, já sai identificado por cliente
+    // (permite filtrar "erros da empresa X" no painel de rastreamento).
+    Sentry.setTag("companyId", String(companyId));
+    Sentry.setTag("userId", String(id));
   } catch (err) {
     throw new AppError("Invalid token. We'll try to assign a new one on next request", 403 );
   }

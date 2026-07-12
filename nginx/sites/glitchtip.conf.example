@@ -1,0 +1,46 @@
+# ════════════════════════════════════════════════════════════════════
+# GlitchTip — Reverse proxy (rastreamento de erros, opcional)
+# ════════════════════════════════════════════════════════════════════
+# Substitua SEU_DOMINIO.com.br pelo domínio real antes de subir.
+# Só use este arquivo se tiver instalado o docker-compose.glitchtip.yml
+# (ver seção "Rastreamento de Erros" do guia de deploy).
+#
+#   errors.seudominio.com.br → painel do GlitchTip
+# ════════════════════════════════════════════════════════════════════
+
+server {
+    listen 80;
+    server_name errors.SEU_DOMINIO.com.br;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name errors.SEU_DOMINIO.com.br;
+
+    ssl_certificate     /etc/letsencrypt/live/errors.SEU_DOMINIO.com.br/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/errors.SEU_DOMINIO.com.br/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options DENY always;
+    add_header X-Content-Type-Options nosniff always;
+
+    location / {
+        proxy_pass http://glitchtip_web:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
