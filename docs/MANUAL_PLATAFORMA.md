@@ -153,7 +153,7 @@ O menu é dividido em 5 seções por contexto:
 └─────────────────────────────────────┘
 ```
 
-> **Nota:** a estrutura exata do menu pode variar por plano contratado (ex: Campanhas some se o plano não incluir) e por perfil (Atendente não vê GESTÃO/CONFIGURAÇÕES/AVANÇADO/SISTEMA). A aba **Integrações** (dentro de Configurações → Configurações) só é visível para quem é **super admin** — é lá que fica o Provedor de IA e o Whisper, que valem para TODA a plataforma (não é configuração por empresa).
+> **Nota:** a estrutura exata do menu pode variar por plano contratado e por perfil (Atendente não vê GESTÃO/CONFIGURAÇÕES/AVANÇADO/SISTEMA). Desde 2026-07-26, **CAMPANHAS e AVANÇADO são visíveis apenas para o super admin** — ver aviso na seção 7. A aba **Integrações** (dentro de Configurações → Configurações) só é visível para quem é **super admin** — é lá que fica o Provedor de IA e o Whisper, que valem para TODA a plataforma (não é configuração por empresa).
 
 ### Atalho global: Cmd/Ctrl + K
 Pressione `Ctrl + K` em qualquer tela e abra o **Command Palette** — busque qualquer página por nome.
@@ -545,6 +545,18 @@ Biblioteca de arquivos pré-cadastrados (catálogos, tabelas de preço, manuais)
 ---
 
 ## 7. AVANÇADO
+
+> 🔒 **Restrito ao super admin (dono da plataforma) desde 2026-07-26.** Toda a seção
+> AVANÇADO e o módulo CAMPANHAS ficaram invisíveis e bloqueados para as empresas-cliente.
+>
+> **Motivo:** enquanto a plataforma opera via Baileys (API não-oficial do WhatsApp),
+> disparo em massa feito por clientes é o maior vetor de banimento do número. O bloqueio
+> é real (backend), não apenas visual — tentativas via URL direta ou chamada de API
+> retornam 401. Quando a licença de integrador oficial da Meta for obtida, essa
+> restrição pode ser reavaliada.
+>
+> As **Respostas Rápidas continuam funcionando normalmente para todos** dentro do chat
+> (atalho `/`) — só a tela de gerenciamento delas ficou restrita.
 
 ### 7.1 📣 Campanhas (3 passos)
 

@@ -110,11 +110,14 @@ const Routes = () => {
                 <Route exact path="/packages" component={Packages} isPrivate />
                 <Route exact path="/finance" component={Finance} isPrivate />
 					{/*<Route exact path="/kanban-schedules" component={kanbanSchedules} isPrivate />*/}
+                {/* API externa de envio — super admin apenas (risco de
+                    disparo em massa / banimento via Baileys, 2026-07-26) */}
                 <Route
                   exact
                   path="/messages-api"
                   component={MessagesAPI}
                   isPrivate
+                  isSuper
                 />
                 <Route
                   exact
@@ -160,6 +163,10 @@ const Routes = () => {
                   isPrivate
                 />
                 <Route exact path="/chats/:id?" component={Chat} isPrivate />
+                {/* Campanhas — super admin apenas (2026-07-26). Disparo em massa
+                    por clientes é o maior vetor de banimento enquanto usamos a
+                    Baileys. `isSuper` redireciona quem tentar a URL direta; o
+                    bloqueio efetivo é o middleware isSuper no backend. */}
                 {showCampaigns && (
                   <>
                     <Route
@@ -167,30 +174,35 @@ const Routes = () => {
                       path="/contact-lists"
                       component={ContactLists}
                       isPrivate
+                      isSuper
                     />
                     <Route
                       exact
                       path="/contact-lists/:contactListId/contacts"
                       component={ContactListItems}
                       isPrivate
+                      isSuper
                     />
                     <Route
                       exact
                       path="/campaigns"
                       component={Campaigns}
                       isPrivate
+                      isSuper
                     />
                     <Route
                       exact
                       path="/campaign/:campaignId/report"
                       component={CampaignReport}
                       isPrivate
+                      isSuper
                     />
                     <Route
                       exact
                       path="/campaigns-config"
                       component={CampaignsConfig}
                       isPrivate
+                      isSuper
                     />
                   </>
                 )}

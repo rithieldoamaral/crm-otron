@@ -3,6 +3,7 @@ import multer from "multer";
 import isAuth from "../middleware/isAuth";
 import uploadConfig from "../config/upload";
 import tokenAuth from "../middleware/tokenAuth";
+import isSuperCompany from "../middleware/isSuperCompany";
 
 import * as MessageController from "../controllers/MessageController";
 
@@ -13,7 +14,10 @@ const upload = multer(uploadConfig);
 messageRoutes.get("/messages/:ticketId", isAuth, MessageController.index);
 messageRoutes.post("/messages/:ticketId", isAuth, upload.array("medias"), MessageController.store);
 messageRoutes.delete("/messages/:messageId", isAuth, MessageController.remove);
-messageRoutes.post("/api/messages/send", tokenAuth, upload.array("medias"), MessageController.send);
+// Anti-banimento (2026-07-26): API externa de envio restrita ao super admin.
+// É o vetor de disparo em massa programático — esconder a aba "Avançado" no
+// frontend não impediria um cliente de posse do token de usá-la.
+messageRoutes.post("/api/messages/send", tokenAuth, isSuperCompany, upload.array("medias"), MessageController.send);
 messageRoutes.post("/messages/edit/:messageId", isAuth, MessageController.edit);
 messageRoutes.post('/message/forward', isAuth, MessageController.forwardMessage)
 messageRoutes.post('/messages/:messageId/reactions', isAuth, MessageController.addReaction);

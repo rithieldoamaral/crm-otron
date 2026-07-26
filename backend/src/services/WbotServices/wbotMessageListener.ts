@@ -80,6 +80,10 @@ import mime from "mime-types";
 import { ensureFolderPermissions, ensureFilePermissions } from "../../helpers/EnsurePermissions";
 import { sanitizeFilename } from "../../helpers/SanitizeFilename";
 import { shouldRunDedup } from "./dedupCounter";
+import {
+  calculateTypingDelayMs,
+  waitWithTypingIndicator,
+} from "./humanTypingDelay";
 ffmpeg.setFfmpegPath(ffmpegPath);
 
 const request = require("request");
@@ -3402,7 +3406,17 @@ const handleMessage = async (
             whatsappId: wbot.id!
           },
           async (text: string) => {
-            await wbot.sendMessage(`${contact.number}@s.whatsapp.net`, { text });
+            // Anti-detecção (2026-07-26): a Secretária respondia instantaneamente
+            // e sem indicador de digitação. Mesmo conversando só com o dono da
+            // empresa, para a Meta é apenas mais um chat — resposta instantânea
+            // é assinatura de bot. Mesmo tratamento do agente de atendimento.
+            const secretaryJid = `${contact.number}@s.whatsapp.net`;
+            await waitWithTypingIndicator(
+              wbot,
+              secretaryJid,
+              calculateTypingDelayMs(text)
+            );
+            await wbot.sendMessage(secretaryJid, { text });
           }
         );
         if (secretaryResult.error) {

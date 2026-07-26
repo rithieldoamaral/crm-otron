@@ -19,6 +19,10 @@ import { handleAgentMessage } from "../AgentService/handleAgentMessage";
 import Ticket from "../../models/Ticket";
 import Contact from "../../models/Contact";
 import { logger } from "../../utils/logger";
+import {
+  calculateTypingDelayMs,
+  waitWithTypingIndicator,
+} from "./humanTypingDelay";
 
 const REDIS_URI = process.env.REDIS_URI || "redis://localhost:6379";
 
@@ -87,14 +91,15 @@ agentMessageQueue.process(async (job) => {
   await handleAgentMessage(
     { companyId, ticket, contactId, contactNumber, userMessage, whatsappId, queueId },
     async (number, text) => {
+      // Anti-detecção (2026-07-26): a fórmula antiga (15ms/char, teto 5s) era
+      // velocidade sobre-humana e sem variação — dois sinais fortes de bot para
+      // a Meta. Agora usamos velocidade humana + jitter. O tempo que a LLM já
+      // consumiu conta como parte da "digitação" (o contato viu "digitando..."
+      // desde o início do job), então descontamos do alvo.
       const elapsed = Date.now() - enqueuedAt;
-      const minTypingMs = Math.min(1500 + Math.round(text.length * 15), 5000);
-      const remaining = Math.max(0, minTypingMs - elapsed);
-      if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
+      const remaining = Math.max(0, calculateTypingDelayMs(text) - elapsed);
 
-      try {
-        await wbot.sendPresenceUpdate("paused", agentJid);
-      } catch {}
+      await waitWithTypingIndicator(wbot, agentJid, remaining);
 
       const sentMsg = await wbot.sendMessage(`${number}@s.whatsapp.net`, { text });
       if (sentMsg) {

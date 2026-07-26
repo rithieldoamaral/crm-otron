@@ -5,6 +5,30 @@ Formato: Data | Decisão | Motivo | Alternativas descartadas
 
 ---
 
+## 2026-07-26 — Endurecimento anti-banimento enquanto operamos via Baileys
+
+**Contexto:** o usuário pretende obter a licença de integrador oficial da Meta no futuro (processo burocrático: página oficial, comprovação de empresa), mas vai operar com a Baileys (API não-oficial) até lá. Pediu três frentes de mitigação e, no ponto 3, pediu explicitamente para ser consultado antes da execução.
+
+**Pesquisa (ponto 3) — sinais de detecção confirmados:** taxa de resposta abaixo de 10%, distância no grafo de contatos (mensagens a desconhecidos), padrões temporais robóticos, contagem de mensagens não respondidas (adicionado em 2026), volume sem aquecimento de número novo, presença online 24/7 e fingerprint de navegador. Já estávamos cobertos em dois: `markOnlineOnConnect: false` e `Browsers.appropriate("Desktop")`.
+
+**Decisão do usuário (consultado via AskUserQuestion):** implementar apenas o **jitter aleatório** agora; **não** implementar rate limit global, pausa noturna nem rampa de aquecimento nesta rodada. Para a API externa, escolheu **bloquear para não-super**. As três medidas não escolhidas ficam registradas como tech debt consciente, não como esquecimento.
+
+**Por que o gate ficou no BACKEND e não só no menu:** o pedido literal foi "ocultar as abas". Mas o objetivo declarado era impedir que clientes disparem em massa. Esconder o menu deixa `/campaigns` acessível por URL direta e a API de campanha aberta a qualquer JWT autenticado — seria fachada, não mitigação. Implementado `isSuper` nas 4 rotas de campanha + frontend alinhado (menu, rotas via nova prop `isSuper` no wrapper `Route`, e paleta de comandos via flag `superOnly`).
+
+**Middleware novo (`isSuperCompany`) — por que não reusar `isSuper`:** `/api/messages/send` autentica por token da conexão WhatsApp (`tokenAuth`), não por JWT. Não existe `req.user`, então o `isSuper` padrão quebraria. O novo resolve identidade por token → Whatsapp → companyId → a empresa tem algum usuário `super`? Só a empresa do dono da plataforma tem.
+
+**Calibração do delay de digitação (ponto 2):** a fórmula anterior (`min(1500 + len*15, 5000)`) entregava 15ms/char ≈ 4.000 WPM — sobre-humano — e era determinística. Novo: 160ms/char (≈47 WPM, atendente treinado) + 1.200ms de leitura, jitter ±30%, piso 2s, teto 25s. Escolhido **Bates (média de 2 uniformes)** em vez de gaussiana real porque Bates é *limitada*: uma gaussiana geraria outliers de 3-sigma com esperas absurdas.
+
+**Renovação do "digitando...":** consequência obrigatória de aumentar o delay. O indicador expira em ~10s no WhatsApp; sem renovar a cada 8s, uma espera de 25s faria o indicador sumir e a mensagem surgir do nada — padrão mais suspeito que o original. Não é feature extra, é o que torna a mudança coerente.
+
+**Secretária incluída:** respondia instantaneamente e sem presence. Mesmo conversando só com o dono da empresa, para a Meta é apenas mais um chat.
+
+**Efeito colateral aceito:** a tela de gerenciamento de Respostas Rápidas (`/quick-messages`, dentro de "Avançado") ficou restrita ao super admin. Verificado que as respostas rápidas continuam utilizáveis por todos dentro do chat (atalho `/` em `MessageInputCustom`) — perde-se só o CRUD, não o uso.
+
+**Limite reconhecido:** nada disso impede o banimento, apenas reduz a probabilidade. A pesquisa é consistente em que a detecção é heurística/ML e não-determinística (contas idênticas podem durar semanas ou meses). A solução real é a API oficial.
+
+---
+
 ## 2026-07-26 — DeepSeek/Qwen como provedores; correção de gap no MiniMax; Qwen-ASR
 
 **Contexto:** usuário pediu para adicionar DeepSeek e Qwen como provedores de LLM (barateando o custo do agente de atendimento, ver análise de custo da mesma sessão) e perguntou se o botão "atualizar modelos" (já existente) puxaria os modelos de todos os provedores automaticamente. Também pediu para verificar se a DeepSeek tem API de transcrição de voz (hoje usamos OpenAI) e, se sim, garantir a mesma capacidade de atualização para voz.

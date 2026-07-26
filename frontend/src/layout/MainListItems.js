@@ -675,8 +675,13 @@ const MainListItems = (props) => {
               collapsed={collapsed}
             />
 
-            {/* CAMPANHAS (seção recolhível) — visível apenas quando o plano inclui campanhas */}
-            {showCampaigns && (
+            {/* CAMPANHAS (seção recolhível) — SUPER ADMIN apenas.
+                Anti-banimento (2026-07-26): enquanto operamos via Baileys (API
+                não-oficial), disparo em massa por clientes é o maior vetor de
+                banimento do número. O plano ainda precisa incluir campanhas, mas
+                só o dono da plataforma enxerga o módulo. O bloqueio real está no
+                backend (isSuper em campaignRoutes) — isto aqui é só a UI. */}
+            {user.super && showCampaigns && (
               <>
                 <ListSubheader hidden={collapsed} className={classes.subheader} inset color="inherit">
                   <ListItem
@@ -720,7 +725,14 @@ const MainListItems = (props) => {
               </>
             )}
 
-            {/* AVANÇADO (seção recolhível) */}
+            {/* AVANÇADO (seção recolhível) — SUPER ADMIN apenas.
+                Anti-banimento (2026-07-26): contém a API externa de envio
+                (/messages-api), que permite disparo em massa programático.
+                Nota: as Respostas Rápidas continuam utilizáveis por todos
+                dentro do chat (atalho "/") — só a tela de gerenciamento
+                delas fica restrita ao super admin. */}
+            {user.super && (
+              <>
             <ListSubheader hidden={collapsed} className={classes.subheader} inset color="inherit">
               <ListItem
                 button
@@ -756,6 +768,8 @@ const MainListItems = (props) => {
                 />
               </List>
             </Collapse>
+              </>
+            )}
 
             {/* SISTEMA — super admin apenas */}
             {user.super && (

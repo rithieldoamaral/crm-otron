@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useContext } from "react";
 import { useHistory } from "react-router-dom";
+import { AuthContext } from "../../context/Auth/AuthContext";
 import Dialog from "@material-ui/core/Dialog";
 import DialogContent from "@material-ui/core/DialogContent";
 import TextField from "@material-ui/core/TextField";
@@ -44,8 +45,11 @@ const NAV_ITEMS = [
   { label: "Arquivos", path: "/files", icon: <AttachFileIcon />, keywords: "arquivos media avancado" },
   { label: "Anúncios", path: "/announcements", icon: <AnnouncementIcon />, keywords: "anuncios avisos informativos sistema" },
   { label: "Logs de Auditoria", path: "/logs", icon: <SecurityIcon />, keywords: "logs auditoria sistema admin" },
-  { label: "Respostas Rápidas", path: "/quick-messages", icon: <AssessmentIcon />, keywords: "respostas rapidas atalhos avancado" },
-  { label: "Campanhas", path: "/campaigns", icon: <AnnouncementIcon />, keywords: "campanhas disparo avancado" },
+  // superOnly (2026-07-26): módulos de risco de banimento via Baileys. Sem este
+  // filtro, o cliente ainda acharia "Campanhas" buscando na paleta de comandos
+  // e cairia num redirect — o módulo precisa ficar invisível, não só bloqueado.
+  { label: "Respostas Rápidas", path: "/quick-messages", icon: <AssessmentIcon />, keywords: "respostas rapidas atalhos avancado", superOnly: true },
+  { label: "Campanhas", path: "/campaigns", icon: <AnnouncementIcon />, keywords: "campanhas disparo avancado", superOnly: true },
   { label: "Financeiro", path: "/financeiro", icon: <BarChartIcon />, keywords: "financeiro faturas pagamento avancado" },
 ];
 
@@ -116,12 +120,14 @@ const useStyles = makeStyles((theme) => ({
 const CommandPalette = () => {
   const classes = useStyles();
   const history = useHistory();
+  const { user } = useContext(AuthContext);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef(null);
 
   const filtered = NAV_ITEMS.filter((item) => {
+    if (item.superOnly && !user?.super) return false;
     if (!query) return true;
     const q = query.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
     const haystack = (item.label + " " + item.keywords)

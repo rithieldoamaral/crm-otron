@@ -7,6 +7,41 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Changed — Endurecimento anti-banimento do WhatsApp (Baileys) (2026-07-26)
+
+Enquanto a plataforma opera via **Baileys** (API não-oficial), até a licença de
+integrador oficial da Meta sair, três frentes de redução de risco de banimento:
+
+**1. Módulos de disparo em massa restritos ao super admin.** "Campanhas" e "Avançado"
+(que contém a API externa de envio) deixam de ser visíveis/acessíveis para empresas-cliente.
+Ocultar o menu não bastaria — o gate real é no backend: `isSuper` em `campaignRoutes`,
+`contactListRoutes`, `contactListItemRoutes` e `campaignSettingRoutes`. No frontend,
+menu lateral, rotas (nova prop `isSuper` no wrapper `Route`) e paleta de comandos
+(`superOnly`) foram alinhados. As Respostas Rápidas continuam utilizáveis por todos
+dentro do chat (atalho `/`) — só a tela de gerenciamento ficou restrita.
+
+**2. API externa de envio (`/api/messages/send`) fechada.** Autentica por token de
+conexão, não por JWT, então o `isSuper` padrão (que lê `req.user`) não se aplicava.
+Novo middleware `isSuperCompany` resolve a identidade por token → Whatsapp → companyId →
+existe super admin? Sem isso, esconder a aba seria puramente cosmético: o cliente de
+posse do token continuaria disparando em massa.
+
+**3. Digitação com velocidade humana e jitter.** A fórmula anterior era
+`min(1500 + 15ms/char, 5000)` — 15ms por caractere equivale a ~4.000 palavras/minuto,
+com teto de 5s e **sem nenhuma variação**. Velocidade sobre-humana e timing determinístico
+são dois dos sinais de maior peso nos modelos de detecção da Meta. Novo módulo
+`humanTypingDelay.ts`: 160ms/char (≈47 WPM) + tempo de leitura, com jitter de ±30% em
+distribuição de Bates (limitada, evita outliers), piso de 2s e teto de 25s. O indicador
+"digitando..." passa a ser **renovado a cada 8s** — ele expira sozinho em ~10s no
+WhatsApp, e antes disso esperas longas fariam o indicador sumir e a mensagem aparecer
+do nada. Aplicado ao Agente de Atendimento e também à **Secretária IA**, que até então
+respondia instantaneamente e sem indicador algum.
+
+17 testes novos (13 de `humanTypingDelay`, 4 de `isSuperCompany`). tsc limpo.
+
+> Nenhuma dessas medidas torna a detecção impossível — apenas reduz a probabilidade.
+> A solução definitiva continua sendo a migração para a WhatsApp Cloud API oficial.
+
 ### Added — DeepSeek e Qwen como provedores de LLM; Qwen-ASR para transcrição (2026-07-26)
 
 Dois novos provedores de texto adicionados ao `AIProviderFactory` (ambos OpenAI-compatible,
