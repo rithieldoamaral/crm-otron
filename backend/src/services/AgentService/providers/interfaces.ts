@@ -63,10 +63,17 @@ export interface ChatOptions {
 /** Configuração do provider por empresa (lida do banco de dados) */
 export interface ProviderConfig {
   /** Identificador do provider */
-  provider: "anthropic" | "openai" | "groq" | "openrouter" | "minimax";
+  provider:
+    | "anthropic"
+    | "openai"
+    | "groq"
+    | "openrouter"
+    | "minimax"
+    | "deepseek"
+    | "qwen";
   apiKey: string;
   model: string;
-  /** URL base customizada — obrigatória para Groq, OpenRouter, MiniMax */
+  /** URL base customizada — obrigatória para Groq, OpenRouter, MiniMax, DeepSeek, Qwen */
   baseUrl?: string;
 }
 
@@ -101,19 +108,36 @@ export interface AIProvider {
   ): Promise<AIResponse>;
 }
 
-/** URLs base padrão por provider */
+/**
+ * URLs base padrão por provider.
+ *
+ * minimax (2026-07-26): corrigido de "api.minimax.chat" (domínio antigo, fora
+ * do ar) para "api.minimax.io" — confirmado na documentação oficial atual.
+ * deepseek/qwen: adicionados na mesma leva (ambos OpenAI-compatible).
+ * qwen usa o endpoint internacional (Singapura) do DashScope — chaves de API
+ * geradas na região China (mainland) não funcionam aqui.
+ */
 export const PROVIDER_BASE_URLS: Record<string, string> = {
   openai: "https://api.openai.com/v1",
   groq: "https://api.groq.com/openai/v1",
   openrouter: "https://openrouter.ai/api/v1",
-  minimax: "https://api.minimax.chat/v1"
+  minimax: "https://api.minimax.io/v1",
+  deepseek: "https://api.deepseek.com/v1",
+  qwen: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
 };
 
-/** Modelos padrão recomendados por provider (custo x qualidade em PT-BR) */
+/**
+ * Modelos padrão recomendados por provider (custo x qualidade em PT-BR).
+ *
+ * minimax (2026-07-26): "abab6.5s-chat" era da geração anterior (ABAB);
+ * corrigido para "MiniMax-M2", primeiro modelo estável da geração atual (M).
+ */
 export const DEFAULT_MODELS: Record<string, string> = {
   anthropic: "claude-haiku-4-5-20251001",
   openai: "gpt-4o-mini",
   groq: "llama-3.3-70b-versatile",
   openrouter: "anthropic/claude-haiku-4-5",
-  minimax: "abab6.5s-chat"
+  minimax: "MiniMax-M2",
+  deepseek: "deepseek-v4-flash",
+  qwen: "qwen-plus"
 };

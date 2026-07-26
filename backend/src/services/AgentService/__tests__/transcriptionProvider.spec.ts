@@ -29,6 +29,7 @@ beforeEach(() => {
     createTranscription: mockCreateTranscription,
   }));
   (fs.createReadStream as jest.Mock).mockReturnValue("fake-stream");
+  (fs.readFileSync as jest.Mock).mockReturnValue(Buffer.from("fake-audio-bytes"));
   // Sem GlobalSettings por padrão (sem override de plataforma)
   mockGlobalSetting.findAll.mockResolvedValue([] as any);
 });
@@ -78,6 +79,60 @@ describe("transcribeWithProvider", () => {
     await expect(
       transcribeWithProvider("/tmp/audio.ogg", "openai", "whisper-1", "sk-bad")
     ).rejects.toThrow("API error");
+  });
+});
+
+// Qwen-ASR (2026-07-26): diferente de OpenAI/Groq, o DashScope não expõe um
+// endpoint multipart `/audio/transcriptions` — a transcrição é feita via
+// `/chat/completions` com o áudio embutido em base64 na mensagem
+// (`type: "input_audio"`). Por isso usa fetch nativo em vez do SDK `openai`.
+describe("transcribeWithProvider — qwen (ASR via chat/completions)", () => {
+  const ORIGINAL_FETCH = global.fetch;
+
+  afterEach(() => {
+    global.fetch = ORIGINAL_FETCH;
+  });
+
+  it("chama o endpoint chat/completions do DashScope com o áudio em base64", async () => {
+    const fetchMock = jest.fn(async (_url: string, _init: any) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [{ message: { content: "Quero agendar um horário" } }]
+      }),
+      text: async () => ""
+    }));
+    global.fetch = fetchMock as any;
+
+    const result = await transcribeWithProvider(
+      "/tmp/audio.ogg", "qwen", "qwen3-asr-flash", "sk-dashscope"
+    );
+
+    expect(result).toBe("Quero agendar um horário");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ Authorization: "Bearer sk-dashscope" })
+      })
+    );
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as any).body);
+    expect(body.model).toBe("qwen3-asr-flash");
+    expect(body.messages[0].content[0].type).toBe("input_audio");
+    expect(body.messages[0].content[0].input_audio.data).toContain("base64,");
+  });
+
+  it("lança erro quando a API do DashScope responde com falha", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({}),
+      text: async () => "Invalid API key"
+    })) as any;
+
+    await expect(
+      transcribeWithProvider("/tmp/audio.ogg", "qwen", "qwen3-asr-flash", "sk-invalid")
+    ).rejects.toThrow();
   });
 });
 

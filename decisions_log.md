@@ -5,6 +5,23 @@ Formato: Data | Decisão | Motivo | Alternativas descartadas
 
 ---
 
+## 2026-07-26 — DeepSeek/Qwen como provedores; correção de gap no MiniMax; Qwen-ASR
+
+**Contexto:** usuário pediu para adicionar DeepSeek e Qwen como provedores de LLM (barateando o custo do agente de atendimento, ver análise de custo da mesma sessão) e perguntou se o botão "atualizar modelos" (já existente) puxaria os modelos de todos os provedores automaticamente. Também pediu para verificar se a DeepSeek tem API de transcrição de voz (hoje usamos OpenAI) e, se sim, garantir a mesma capacidade de atualização para voz.
+
+**Descoberta ao investigar (antes de implementar):**
+1. `modelFetcher.ts` (o botão "atualizar modelos") **não tinha entrada para MiniMax** — mesmo o MiniMax já funcionando para chat via `AIProviderFactory`, o botão falhava silenciosamente e sempre caía no fallback estático do frontend. Bug pré-existente, não relacionado ao pedido, mas direto no caminho do que "garantir para todos os provedores" exige — corrigido.
+2. `PROVIDER_BASE_URLS.minimax` apontava para `api.minimax.chat` — domínio que não corresponde à documentação oficial atual (`api.minimax.io`). O modelo padrão `abab6.5s-chat` também é de uma geração anterior (atual: M2/M2.5/M2.7/M3). Ambos corrigidos.
+3. **A alegação do usuário sobre transcrição da DeepSeek é FALSA** — verificado em múltiplas fontes (incluindo repositórios de voice-agent construídos sobre a DeepSeek): não existe endpoint de STT/transcrição na API da DeepSeek. A comunidade recomenda emparelhar a DeepSeek (só texto) com um serviço de STT de terceiro. Reportado ao usuário; **não implementado** (implementar seria fabricar um recurso que não existe).
+4. **Qwen tem uma API de ASR real** (Qwen3-ASR-Flash, via Alibaba Cloud Model Studio/DashScope), mas com um contrato de chamada fundamentalmente diferente do Whisper: não é multipart `/audio/transcriptions`, é uma chamada JSON para `/chat/completions` com o áudio embutido em base64 numa mensagem `type: "input_audio"`. Implementado como função própria (`transcribeWithQwenASR`) em vez de reaproveitar o SDK `openai` (que só fala o protocolo multipart).
+5. **MiniMax: NÃO adicionado à transcrição.** A documentação oficial encontrada (`platform.minimax.io/docs/api-reference/speech-t2a-http`) cobre apenas Text-to-Speech (T2A) — o oposto do que precisamos. Não há endpoint de ASR/STT documentado e verificável. Uma issue aberta em um projeto de terceiros pedindo essa funcionalidade sugere que, se existir, não é pública/estável o suficiente para confiar em produção. Decisão: não fabricar suporte não verificado.
+
+**Por que Qwen usa o endpoint internacional (Singapura) do DashScope:** `dashscope-intl.aliyuncs.com`, não `dashscope.aliyuncs.com` (China mainland) — chaves de API das duas regiões não são intercambiáveis, e o usuário/clientes operam fora da China.
+
+**Trade-off aceito:** `LLM_FILTER.qwen` filtra por substring (exclui `asr`/`tts`/`embedding`/`rerank`) em vez de uma lista de allowlist exata, porque o catálogo real de modelos da DashScope não foi verificado ao vivo (sem chave de API disponível nesta sessão). Se o filtro deixar passar algo inesperado, o pior caso é um item extra no dropdown — degradação graciosa, consistente com o padrão já usado para OpenAI/Groq.
+
+---
+
 ## 2026-07-12 — Rastreamento de erros: GlitchTip self-hosted em vez de Sentry SaaS
 
 **Contexto:** usuário perguntou se o backend registra erros "de forma otimizada, mostrando o porquê da falha, para todos os clientes". Investigação encontrou o SDK `@sentry/node` já integrado em 51 pontos do código (`Sentry.captureException`) e um handler global de erros no Express — mas `SENTRY_DSN` nunca foi definido em nenhum `.env`, ou seja, todo esse código captura erros e os descarta silenciosamente (SDK em modo no-op sem DSN). Mais um caso do padrão "infra construída, nunca ligada" (ver entrada anterior sobre `dbLog()`).

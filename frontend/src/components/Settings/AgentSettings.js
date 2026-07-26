@@ -27,6 +27,8 @@ const PROVIDERS = [
   { value: "openrouter", label: "OpenRouter" },
   { value: "openai", label: "OpenAI (GPT)" },
   { value: "minimax", label: "MiniMax" },
+  { value: "deepseek", label: "DeepSeek" },
+  { value: "qwen", label: "Qwen (Alibaba)" },
 ];
 
 const WHISPER_PROVIDERS = [
@@ -60,8 +62,17 @@ const DEFAULT_LLM_MODELS = {
     { id: "gpt-4o", label: "GPT-4o" },
   ],
   minimax: [
-    { id: "abab6.5s-chat", label: "ABAB 6.5s (recomendado)" },
-    { id: "abab5.5s-chat", label: "ABAB 5.5s" },
+    { id: "MiniMax-M2", label: "MiniMax-M2 (recomendado)" },
+    { id: "MiniMax-M3", label: "MiniMax-M3 — mais recente" },
+  ],
+  deepseek: [
+    { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash — rápido, econômico (recomendado)" },
+    { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro — raciocínio avançado" },
+  ],
+  qwen: [
+    { id: "qwen-turbo", label: "Qwen Turbo — mais econômico" },
+    { id: "qwen-plus", label: "Qwen Plus — equilibrado (recomendado)" },
+    { id: "qwen-max", label: "Qwen Max — mais poderoso" },
   ],
 };
 

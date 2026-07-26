@@ -33,11 +33,14 @@ const PROVIDERS = [
   { value: "openrouter", label: "OpenRouter" },
   { value: "openai", label: "OpenAI (GPT)" },
   { value: "minimax", label: "MiniMax" },
+  { value: "deepseek", label: "DeepSeek" },
+  { value: "qwen", label: "Qwen (Alibaba)" },
 ];
 
 const WHISPER_PROVIDERS = [
   { value: "openai", label: "OpenAI Whisper" },
   { value: "groq", label: "Groq Whisper (mais rápido e barato)" },
+  { value: "qwen", label: "Qwen-ASR (Alibaba)" },
 ];
 
 const DEFAULT_WHISPER_MODELS = {
@@ -46,6 +49,9 @@ const DEFAULT_WHISPER_MODELS = {
     { id: "whisper-large-v3", label: "whisper-large-v3 (mais preciso)" },
     { id: "distil-whisper-large-v3-en", label: "distil-whisper-large-v3-en (mais rápido)" },
   ],
+  // DeepSeek NÃO tem API de transcrição de áudio (verificado 2026-07-26) —
+  // por isso não aparece em WHISPER_PROVIDERS acima.
+  qwen: [{ id: "qwen3-asr-flash", label: "Qwen3-ASR-Flash (recomendado)" }],
 };
 
 const DEFAULT_MODELS = {
@@ -68,8 +74,17 @@ const DEFAULT_MODELS = {
     { id: "gpt-4o", label: "GPT-4o — mais poderoso" },
   ],
   minimax: [
-    { id: "abab6.5s-chat", label: "ABAB 6.5s (recomendado)" },
-    { id: "abab5.5s-chat", label: "ABAB 5.5s" },
+    { id: "MiniMax-M2", label: "MiniMax-M2 (recomendado)" },
+    { id: "MiniMax-M3", label: "MiniMax-M3 — mais recente" },
+  ],
+  deepseek: [
+    { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash — rápido, econômico (recomendado)" },
+    { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro — raciocínio avançado" },
+  ],
+  qwen: [
+    { id: "qwen-turbo", label: "Qwen Turbo — mais econômico" },
+    { id: "qwen-plus", label: "Qwen Plus — equilibrado (recomendado)" },
+    { id: "qwen-max", label: "Qwen Max — mais poderoso" },
   ],
 };
 

@@ -7,6 +7,37 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Added — DeepSeek e Qwen como provedores de LLM; Qwen-ASR para transcrição (2026-07-26)
+
+Dois novos provedores de texto adicionados ao `AIProviderFactory` (ambos OpenAI-compatible,
+mesmo padrão do Groq/OpenRouter/MiniMax): **DeepSeek** (`deepseek-v4-flash`/`deepseek-v4-pro`)
+e **Qwen/Alibaba** (`qwen-turbo`/`qwen-plus`/`qwen-max`, endpoint DashScope internacional).
+Disponíveis tanto no LLM do Agente de Atendimento quanto da Secretária IA (Configurações
+Globais e por empresa).
+
+O botão "atualizar modelos" (↻) já existente passa a funcionar para os dois novos
+provedores e também para o **MiniMax**, que tinha o gap corrigido nesta mudança (ver Fixed
+abaixo) — busca a lista real via API em vez de depender só da lista estática no código.
+
+**Transcrição de voz:** investigado o pedido de adicionar DeepSeek à transcrição de áudio —
+**DeepSeek não possui API de transcrição** (confirmado em múltiplas fontes: não há endpoint
+de STT, apenas integrações de terceiros são recomendadas pela própria comunidade). Não foi
+adicionado. **Qwen tem uma API real de ASR** (Qwen3-ASR-Flash) e foi adicionado à
+transcrição — porém com um formato de chamada fundamentalmente diferente do Whisper
+(JSON via `/chat/completions` com áudio em base64, não multipart `/audio/transcriptions`),
+implementado como caminho próprio em `transcriptionProvider.ts`. MiniMax não foi adicionado
+à transcrição — não foi possível confirmar um endpoint de ASR documentado e testável.
+
+12 testes novos (AIProviderFactory, modelFetcher, transcriptionProvider). tsc limpo.
+
+### Fixed — MiniMax: URL base e modelo padrão desatualizados (2026-07-26)
+
+`PROVIDER_BASE_URLS.minimax` apontava para `api.minimax.chat` (domínio antigo, fora do ar);
+corrigido para `api.minimax.io` (confirmado na documentação oficial atual). O modelo padrão
+`abab6.5s-chat` (geração anterior) foi atualizado para `MiniMax-M2` (geração atual). Também
+corrigido: `modelFetcher.ts` não tinha entrada para MiniMax — o botão "atualizar modelos"
+falhava silenciosamente para esse provider apesar do chat já funcionar.
+
 ### Added — Rastreamento de erros por empresa + guia de instalação do GlitchTip (2026-07-12)
 
 O SDK do Sentry já era usado em 51 pontos do backend (`Sentry.captureException`), mas

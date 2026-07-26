@@ -57,6 +57,20 @@ export class AIProviderFactory {
           baseUrl ?? PROVIDER_BASE_URLS.minimax
         );
 
+      case "deepseek":
+        return new OpenAICompatibleProvider(
+          apiKey,
+          model,
+          baseUrl ?? PROVIDER_BASE_URLS.deepseek
+        );
+
+      case "qwen":
+        return new OpenAICompatibleProvider(
+          apiKey,
+          model,
+          baseUrl ?? PROVIDER_BASE_URLS.qwen
+        );
+
       default:
         throw new Error(`Provider desconhecido: ${provider}`);
     }

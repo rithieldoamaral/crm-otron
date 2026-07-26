@@ -55,6 +55,22 @@ describe("AIProviderFactory", () => {
       expect(provider).toBeInstanceOf(OpenAICompatibleProvider);
     });
 
+    it("retorna OpenAICompatibleProvider para provider='deepseek'", () => {
+      const provider = AIProviderFactory.create({
+        ...baseConfig,
+        provider: "deepseek"
+      });
+      expect(provider).toBeInstanceOf(OpenAICompatibleProvider);
+    });
+
+    it("retorna OpenAICompatibleProvider para provider='qwen'", () => {
+      const provider = AIProviderFactory.create({
+        ...baseConfig,
+        provider: "qwen"
+      });
+      expect(provider).toBeInstanceOf(OpenAICompatibleProvider);
+    });
+
     it("lança erro para provider desconhecido", () => {
       expect(() =>
         AIProviderFactory.create({
@@ -90,6 +106,22 @@ describe("AIProviderFactory", () => {
         baseUrl: customUrl
       }) as OpenAICompatibleProvider;
       expect(provider.baseUrl).toBe(customUrl);
+    });
+
+    it("usa baseUrl padrão do DeepSeek quando não informada", () => {
+      const provider = AIProviderFactory.create({
+        ...baseConfig,
+        provider: "deepseek"
+      }) as OpenAICompatibleProvider;
+      expect(provider.baseUrl).toBe(PROVIDER_BASE_URLS.deepseek);
+    });
+
+    it("usa baseUrl padrão do Qwen (DashScope internacional) quando não informada", () => {
+      const provider = AIProviderFactory.create({
+        ...baseConfig,
+        provider: "qwen"
+      }) as OpenAICompatibleProvider;
+      expect(provider.baseUrl).toBe(PROVIDER_BASE_URLS.qwen);
     });
   });
 });

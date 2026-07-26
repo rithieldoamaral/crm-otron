@@ -467,9 +467,10 @@ Configurações gerais da empresa. Várias abas:
 - **MERCADO PAGO** — public key + access token + webhook secret
 
 **Aba Integrações (visível SÓ para super admin):**
-- **Provedor de IA — Agente de Atendimento:** provedor (Anthropic/Groq/OpenRouter/OpenAI/MiniMax), API Key, modelo
+- **Provedor de IA — Agente de Atendimento:** provedor (Anthropic/Groq/OpenRouter/OpenAI/MiniMax/DeepSeek/Qwen), API Key, modelo
 - **Provedor de IA — Secretária IA:** mesma coisa, pode ser um provedor/modelo DIFERENTE do agente de atendimento
-- **Whisper (transcrição de áudio):** provedor (OpenAI ou Groq), API Key, modelo
+- **Whisper (transcrição de áudio):** provedor (OpenAI, Groq ou Qwen-ASR), API Key, modelo
+- **Botão ↻ "atualizar modelos":** ao lado do campo Modelo, busca ao vivo a lista real de modelos do provedor via API — use sempre que o provedor lançar um modelo novo, sem precisar esperar atualização da plataforma
 
 > ⚠️ **Mudança importante:** desde a reorganização de GlobalSettings, a chave de API do LLM e do Whisper **NÃO é mais configurada por empresa** — é o **super admin** (você, dono da plataforma) quem configura uma vez aqui e vale para **todas as empresas** que usam o CRM. Isso simplifica o onboarding de novos clientes (eles não precisam ter conta própria na Anthropic/OpenAI) e centraliza o custo sob seu controle.
 
@@ -722,11 +723,15 @@ Diferente do Agente de Atendimento (que é ativado por CANAL/número), a Secret�
 
 Isto mudou: **você (super admin) configura uma única vez** qual LLM e qual serviço de transcrição de áudio (Whisper) a plataforma inteira usa — em **CONFIGURAÇÕES → Configurações → aba "Integrações"** (só super admin vê essa aba).
 
-- **Provedor de IA — Agente de Atendimento:** Anthropic (Claude) / Groq (Llama) / OpenRouter / OpenAI (GPT) / MiniMax + API Key + modelo
+- **Provedor de IA — Agente de Atendimento:** Anthropic (Claude) / Groq (Llama) / OpenRouter / OpenAI (GPT) / MiniMax / DeepSeek / Qwen (Alibaba) + API Key + modelo
 - **Provedor de IA — Secretária IA:** pode usar um provedor/modelo DIFERENTE (ex: um modelo mais potente para análises financeiras, um mais rápido/barato para atendimento)
-- **Whisper (transcrição de áudio):** OpenAI Whisper ou Groq Whisper
+- **Whisper (transcrição de áudio):** OpenAI Whisper, Groq Whisper ou Qwen-ASR
+
+**Botão ↻ "atualizar modelos":** ao lado do campo Modelo, em qualquer um dos três painéis acima. Busca ao vivo, via API do provedor, a lista real de modelos disponíveis para a sua chave — assim, quando o provedor lançar um modelo novo, você só clica em ↻ em vez de esperar uma atualização do CRM. Se a busca falhar (chave inválida, provedor fora do ar), a lista volta para as opções padrão já conhecidas — nunca trava a tela.
 
 **Por que centralizado:** cada empresa-cliente sua não precisa ter conta própria em nenhum provedor de IA — você absorve esse custo e controle. Se um dia quiser permitir que uma empresa específica use sua PRÓPRIA chave, isso ainda é possível via configuração avançada por empresa (fallback), mas não é o caminho padrão.
+
+> **DeepSeek não tem serviço de transcrição de voz** — por isso não aparece nas opções de Whisper, só nas de texto. Já o Qwen tem um serviço próprio de transcrição (Qwen-ASR), disponível como terceira opção de Whisper.
 
 ### 9.6 Custos esperados (referência)
 
@@ -737,8 +742,10 @@ Isto mudou: **você (super admin) configura uma única vez** qual LLM e qual ser
 | Anthropic | Claude Opus 4.7 | Mais poderoso, mais caro |
 | Groq | Llama 3.3 70B | Muito barato, boa qualidade de tool-calling |
 | OpenAI | GPT-4o-mini | Alternativa econômica |
+| DeepSeek | DeepSeek V4 Flash | Muito mais barato que o Haiku (~85% de economia), boa qualidade de tool-calling |
+| Qwen | Qwen Plus | Alternativa econômica da Alibaba, equilibrada |
 
-Um atendimento médio gasta 5-15 turnos de conversa. Monitore o gasto real no painel do provedor escolhido (Anthropic Console, OpenAI Platform, etc.) — os primeiros dias de uso servem de referência para o restante do mês.
+Um atendimento médio gasta 5-15 turnos de conversa. Monitore o gasto real no painel do provedor escolhido (Anthropic Console, OpenAI Platform, DeepSeek Platform, Alibaba Cloud Model Studio, etc.) — os primeiros dias de uso servem de referência para o restante do mês.
 
 ---
 

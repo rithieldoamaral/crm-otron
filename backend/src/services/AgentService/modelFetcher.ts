@@ -11,10 +11,16 @@ export interface AgentModel {
   label: string;
 }
 
+// 2026-07-26: minimax não tinha entrada aqui (embora já funcione para chat via
+// AIProviderFactory) — o botão "atualizar modelos" falhava silenciosamente
+// para esse provider. deepseek/qwen adicionados na mesma leva.
 const BASE_PATHS: Record<string, string> = {
   openai: "https://api.openai.com/v1",
   groq: "https://api.groq.com/openai/v1",
   openrouter: "https://openrouter.ai/api/v1",
+  minimax: "https://api.minimax.io/v1",
+  deepseek: "https://api.deepseek.com/v1",
+  qwen: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 };
 
 const LLM_FILTER: Record<string, (id: string) => boolean> = {
@@ -23,11 +29,24 @@ const LLM_FILTER: Record<string, (id: string) => boolean> = {
     !id.includes("embed"),
   groq: id => !id.includes("whisper") && !id.includes("distil"),
   openrouter: () => true,
+  minimax: () => true,
+  deepseek: () => true,
+  // DashScope mistura chat/ASR/embedding/rerank num único catálogo — exclui
+  // os que claramente não são modelos de conversação.
+  qwen: id =>
+    !id.includes("asr") && !id.includes("tts") &&
+    !id.includes("embedding") && !id.includes("rerank"),
 };
 
+/**
+ * DeepSeek não possui API de transcrição de áudio (verificado 2026-07-26) —
+ * por isso não tem entrada aqui. fetchTranscriptionModels("deepseek", ...)
+ * retorna [] graciosamente (mesmo caminho de "sem filtro" já existente).
+ */
 const TRANSCRIPTION_FILTER: Record<string, (id: string) => boolean> = {
   openai: id => id.includes("whisper"),
   groq: id => id.includes("whisper") || id.includes("distil"),
+  qwen: id => id.includes("asr"),
 };
 
 async function fetchOpenAICompatModels(
