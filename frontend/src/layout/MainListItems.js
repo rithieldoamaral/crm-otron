@@ -786,13 +786,6 @@ const MainListItems = (props) => {
                   collapsed={collapsed}
                 />
                 <ListItemLink
-                  to="/backups"
-                  primary={i18n.t("mainDrawer.listItems.backups")}
-                  icon={<FiDatabase size={18} />}
-                  isActive={isActivePath('/backups')}
-                  collapsed={collapsed}
-                />
-                <ListItemLink
                   to="/logs"
                   primary="Logs de Auditoria"
                   icon={<FiActivity size={18} />}

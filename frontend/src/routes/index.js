@@ -38,7 +38,6 @@ import Chat from "../pages/Chat";
 import ToDoList from "../pages/ToDoList/";
 import Subscription from "../pages/Subscription/";
 import Files from "../pages/Files/";
-import Backups from "../pages/Backups";
 import SystemLogs from "../pages/SystemLogs";
 import Services from "../pages/Services";
 import Packages from "../pages/Packages";
@@ -104,7 +103,6 @@ const Routes = () => {
                 <Route exact path="/helps" component={Helps} isPrivate />
                 <Route exact path="/users" component={Users} isPrivate />
                 <Route exact path="/files" component={Files} isPrivate />
-				<Route exact path="/backups" component={Backups} isPrivate />
                 <Route exact path="/logs" component={SystemLogs} isPrivate />
                 <Route exact path="/services" component={Services} isPrivate />
                 <Route exact path="/packages" component={Packages} isPrivate />
