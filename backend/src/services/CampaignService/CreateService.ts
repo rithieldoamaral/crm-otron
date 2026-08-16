@@ -43,7 +43,12 @@ const CreateService = async (data: Data): Promise<Campaign> => {
     data.status = "PROGRAMADA";
   }
 
-  const record = await Campaign.create(data);
+  // SEQUELIZE 6: cast preserva o valor de string já enviado (coluna é Date,
+  // interface local sempre foi tipada string) — comportamento inalterado.
+  const record = await Campaign.create({
+    ...data,
+    scheduledAt: data.scheduledAt as unknown as Date
+  });
 
   await record.reload({
     include: [

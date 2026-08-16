@@ -147,7 +147,7 @@ class Whatsapp extends Model<Whatsapp> {
   maxUseBotQueues: number;
 
   @Column
-  timeUseBotQueues: string;
+  timeUseBotQueues: number;
 
   @Column
   expiresTicket: number;

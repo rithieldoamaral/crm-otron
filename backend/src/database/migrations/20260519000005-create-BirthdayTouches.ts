@@ -68,8 +68,8 @@ module.exports = {
     });
 
     // Idempotência: 1 toque por tipo por contato por ano
-    // Sequelize v5: addConstraint(table, fields[], options)
-    await queryInterface.addConstraint("BirthdayTouches", ["contactId", "year", "touchType"], {
+    await queryInterface.addConstraint("BirthdayTouches", {
+      fields: ["contactId", "year", "touchType"],
       type: "unique",
       name: "birthday_touches_contact_year_type_unique"
     });

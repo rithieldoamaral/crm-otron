@@ -58,14 +58,11 @@ module.exports = {
       updatedAt: { type: DataTypes.DATE, allowNull: false }
     });
 
-    await queryInterface.addConstraint(
-      "LoyaltyRewards",
-      ["contactId", "milestone"],
-      {
-        type: "unique",
-        name: "loyalty_rewards_contact_milestone_unique"
-      }
-    );
+    await queryInterface.addConstraint("LoyaltyRewards", {
+      fields: ["contactId", "milestone"],
+      type: "unique",
+      name: "loyalty_rewards_contact_milestone_unique"
+    });
 
     await queryInterface.addIndex("LoyaltyRewards", ["companyId", "awardedAt"]);
   },

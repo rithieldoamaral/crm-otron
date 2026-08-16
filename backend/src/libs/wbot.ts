@@ -44,7 +44,9 @@ const KEY_MAP: { [T in keyof SignalDataTypeMap]: string } = {
   "sender-key-memory": "senderKeyMemory",
   "lid-mapping": "lidMapping",
   "device-list": "deviceList",
-  tctoken: "tctoken"
+  tctoken: "tctoken",
+  // baileys 7.0.0-rc14 adicionou este tipo ao SignalDataTypeMap
+  "identity-key": "identityKeys"
 };
 
 // Função para extrair número de telefone do JID

@@ -56,10 +56,10 @@ const CreateService = async ({
   const schedule = await Schedule.create(
     {
       body,
-      sendAt,
-      contactId,
-      companyId,
-      userId,
+      sendAt: sendAt as unknown as Date,
+      contactId: Number(contactId),
+      companyId: Number(companyId),
+      userId: userId !== undefined ? Number(userId) : undefined,
       status: 'PENDENTE',
       geral,
   	  queueId,
@@ -69,8 +69,8 @@ const CreateService = async ({
       repeatEvery,
       selectDaysRecorrenci,
       repeatCount,
-      professionalId: professionalId || null,
-      serviceId: serviceId || null,
+      professionalId: professionalId ? Number(professionalId) : null,
+      serviceId: serviceId ? Number(serviceId) : null,
     }
   );
 

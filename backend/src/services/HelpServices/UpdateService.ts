@@ -18,7 +18,7 @@ const UpdateService = async (data: Data): Promise<Help> => {
     throw new AppError("ERR_NO_HELP_FOUND", 404);
   }
 
-  await record.update(data);
+  await record.update({ ...data, id: id as unknown as number });
 
   return record;
 };

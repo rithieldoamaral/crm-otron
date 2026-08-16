@@ -31,6 +31,8 @@ const CreateService = async (data: Data): Promise<QuickMessage> => {
 
   const record = await QuickMessage.create({
     ...data,
+    companyId: Number(data.companyId),
+    userId: Number(data.userId),
     editBeforeSend: data.editBeforeSend !== undefined ? data.editBeforeSend : false
   });
 

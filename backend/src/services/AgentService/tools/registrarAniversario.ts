@@ -190,7 +190,8 @@ export async function registrarAniversario(
     }
 
     // DATEONLY aceita a string YYYY-MM-DD direto — sem Date/UTC, sem risco de fuso.
-    await contato.update({ birthday: parsed.iso });
+    // SEQUELIZE 6: cast só ajusta a checagem estática (coluna tipada Date).
+    await contato.update({ birthday: parsed.iso as unknown as Date });
 
     logger.info(
       `[registrarAniversario] birthday gravado contactId=${contactId} companyId=${companyId} data=${parsed.iso}`

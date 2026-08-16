@@ -75,8 +75,8 @@ const UpdateUserService = async ({
 
   await schedule.update({
     body,
-    sendAt,
-    sentAt,
+    sendAt: sendAt as unknown as Date,
+    sentAt: sentAt as unknown as Date,
     contactId,
     ticketId,
     userId,

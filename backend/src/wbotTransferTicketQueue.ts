@@ -56,8 +56,9 @@ export const TransferTicketQueue = async (): Promise<void> => {
       });
 
       await ticketTraking.update({
-        queuedAt: moment().toDate(),
-        queueId: wpp.transferQueueId,
+        queuedAt: moment().toDate()
+        // SEQUELIZE 6: `queueId` nunca existiu como coluna do model
+        // TicketTraking — no-op silencioso removido.
       });
 
       const currentTicket = await ShowTicketService(ticket.id, ticket.companyId);

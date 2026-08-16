@@ -106,7 +106,10 @@ class User extends Model<User> {
   @BeforeCreate
   static hashPassword = async (instance: User): Promise<void> => {
     if (instance.password) {
-      instance.passwordHash = await hash(instance.password, 8);
+      // SEGURANÇA: custo elevado de 8 para 12 (padrão recomendado atual).
+      // Hashes antigos continuam válidos — o cost fica embutido no próprio
+      // hash bcrypt, só senhas novas/alteradas passam a usar custo 12.
+      instance.passwordHash = await hash(instance.password, 12);
     }
   };
 
