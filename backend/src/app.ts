@@ -9,7 +9,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { v4 as uuidv4 } from "uuid";
 
-import bodyParser from 'body-parser';
+import bodyParser from "body-parser";
 import uploadConfig from "./config/upload";
 import "./database";
 import AppError from "./errors/AppError";
@@ -33,38 +33,55 @@ app.set("queues", {
   sendScheduledMessages
 });
 
-app.use(bodyParser.json({ 
-  limit: '10mb',
-  verify: (req, res, buf) => {
-    req.rawBody = buf;
-  }
-}));
-
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'", process.env.FRONTEND_URL || "*"]
+app.use(
+  bodyParser.json({
+    limit: "10mb",
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
     }
-  }
-}));
+  })
+);
+
+// SEGURANÇA (2026-07-27 — CLAUDE.md XV.4): `script-src` deixou de aceitar
+// `'unsafe-inline'`. Com ele, a CSP não oferecia proteção real contra XSS —
+// um payload injetado executa justamente como script inline.
+//
+// A diretiva permissiva existia por causa de UMA página: o popup de callback
+// do OAuth do Google Calendar (GoogleCalendarController.oauthCallback), única
+// HTML servida pelo backend, que precisa de <script> inline para devolver o
+// resultado ao window.opener. Aquela rota agora autoriza o próprio script por
+// nonce, em CSP própria, sem abrir exceção para o resto da aplicação.
+//
+// `style-src` mantém `'unsafe-inline'`: o Material-UI injeta estilo em runtime
+// e não há como aplicar nonce a cada um. Estilo inline tem superfície de ataque
+// muito menor que script inline.
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "blob:"],
+        connectSrc: ["'self'", process.env.FRONTEND_URL || "*"]
+      }
+    }
+  })
+);
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
-  message: 'Muitas requisições deste IP, tente novamente após 15 minutos',
-  skip: (req) => {
-    return req.ip === '127.0.0.1' || req.ip === '::1';
+  message: "Muitas requisições deste IP, tente novamente após 15 minutos",
+  skip: req => {
+    return req.ip === "127.0.0.1" || req.ip === "::1";
   }
 });
 
-app.use('/auth', apiLimiter);
+app.use("/auth", apiLimiter);
 
 app.use(
   cors({
@@ -79,9 +96,9 @@ app.use(
 
       const allowedOrigins = [
         process.env.FRONTEND_URL,
-        'https://api.gerencianet.com.br',
-        'https://api.efipay.com.br',
-        'https://api.mercadopago.com'
+        "https://api.gerencianet.com.br",
+        "https://api.efipay.com.br",
+        "https://api.mercadopago.com"
       ].filter(Boolean);
 
       // SEGURANÇA: o callback antigo retornava true em todos os cenários,
@@ -91,10 +108,25 @@ app.use(
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
-      return callback(new Error(`Origin not allowed by CORS: ${origin}`), false);
+      return callback(
+        new Error(`Origin not allowed by CORS: ${origin}`),
+        false
+      );
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'x-webhook-signature', 'X-Webhook-Signature', 'x-hub-signature', 'x-hub-signature-256', 'x-sgn', 'x-signature']
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Origin",
+      "X-Requested-With",
+      "Content-Type",
+      "Accept",
+      "Authorization",
+      "x-webhook-signature",
+      "X-Webhook-Signature",
+      "x-hub-signature",
+      "x-hub-signature-256",
+      "x-sgn",
+      "x-signature"
+    ]
   })
 );
 
@@ -119,7 +151,7 @@ app.use(async (err: Error, req: Request, res: Response, _: NextFunction) => {
     path: req.path,
     errName: err?.name,
     errMsg: err?.message,
-    err,
+    err
   });
   return res.status(500).json({ error: "Internal server error" });
 });

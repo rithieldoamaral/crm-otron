@@ -7,6 +7,90 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Security — Auditoria da Seção XV: 5 vulnerabilidades corrigidas (2026-07-27)
+
+Primeira auditoria do código contra a nova Seção XV do `CLAUDE.md`. Até então o
+documento tratava "segurança" como gestão de secrets e scan de dependências —
+não havia nenhuma regra sobre autorização, IDOR, XSS ou obscuridade, e por isso
+nada disso tinha sido verificado.
+
+**1. IDOR + SQL injection em relatórios (CRÍTICO).** `ReportsController` lia
+`companyId`, `initialDate` e `finalDate` de `req.query` e os interpolava direto
+na string SQL. As rotas usam só `isAuth`, então qualquer usuário autenticado
+lia os relatórios de outra empresa com `?companyId=99` — e `?companyId=1 OR 1=1--`
+era concatenado sem aspas. Agora o `companyId` vem de `req.user`, as datas são
+validadas e tudo viaja como `replacements` do Sequelize.
+
+**2. IDOR em dashboard, filas e listagem de usuários (ALTO).** Mesmo padrão em
+`DashbardController`, `QueueController` e `UserController`: o `companyId`
+enviado pelo cliente vencia o da sessão, expondo relatórios, filas e a lista de
+usuários (nome + e-mail) de qualquer empresa. O novo helper `resolveCompanyId`
+mantém o acesso entre empresas — usado de verdade pelo painel de super admin —
+mas só para quem é `super` no banco.
+
+**3. XSS armazenado via mensagem de WhatsApp (ALTO).** `LocationPreview`
+renderizava com `dangerouslySetInnerHTML` o corpo bruto de uma mensagem
+recebida. Qualquer pessoa que mandasse mensagem para o número da empresa
+executava JavaScript na sessão do atendente, com acesso ao token e a todas as
+conversas do tenant. O HTML servia só para quebra de linha — trocado por
+`white-space: pre-line`.
+
+**4. XSS de terceiro na página de changelog (MÉDIO).** `LogPlw` renderizava como
+HTML o README de um repositório de terceiros buscado na API do GitHub, na tela
+restrita ao super admin. Passa a renderizar como texto.
+
+**5. CSP sem proteção efetiva (MÉDIO).** `script-src` carregava `'unsafe-inline'`,
+que é justamente como um payload de XSS executa. Existia por causa de uma única
+página (popup de OAuth do Google Calendar): agora aquela rota usa nonce por
+resposta e o escopo global não aceita mais script inline.
+
+**Infraestrutura.** `server_tokens off` e `autoindex off` no nginx; bloqueio de
+dotfiles, dumps e source maps no template de site. `frontend/.env.exemple`
+(nome com typo, versionado) renomeado para `.env.example`.
+
+**Verificados e já conformes:** senhas com bcrypt, tokens do Google
+criptografados em repouso, login sem enumeração de contas, rate limiting em
+`/auth`, CORS com allowlist, build sem source maps, nenhum `.env` versionado.
+
+26 testes novos (18 em `ReportsController`, 8 em `resolveCompanyId`), escritos
+antes das correções conforme CLAUDE.md II.1.
+
+### Added — CI/CD e portões automáticos (2026-07-27)
+
+O `CLAUDE.md` descrevia um pipeline de CI/CD desde a versão 2.0, mas o
+repositório nunca teve um. A consequência apareceu no commit `aca9ffa`: sem
+`package-lock.json` versionado, o deploy rodou `npm install`, resolveu
+`baileys ^7.0.0-rc.9` para o `rc13` e quebrou o build — descoberto só na VPS,
+porque não havia portão nenhum entre a máquina de desenvolvimento e produção.
+
+- **`.github/workflows/ci.yml`** com 4 jobs bloqueantes: `backend-build`
+  (`npm ci` + `tsc --noEmit` + lint + build), `frontend-build` (build +
+  auditoria automatizada do bundle), `backend-test` (jest com Redis) e
+  `security` (TruffleHog + `npm audit` + checagem de lockfile e `.env`).
+  O `npm ci` do primeiro job teria pego o `aca9ffa` em ~3 minutos.
+- **Auditoria de bundle automatizada** (CLAUDE.md XV.8): o CI verifica a cada
+  push que o build publicado não tem source maps, credenciais de padrão
+  conhecido nem string de conexão de banco — antes isso dependia de alguém
+  lembrar de abrir o DevTools.
+- **`.githooks/pre-commit`** em bash puro, sem dependências: bloqueia `.env`,
+  credenciais de padrão inequívoco, arquivo grande e `package-lock.json`
+  voltando para o `.gitignore`. Instalação: `bash scripts/install-hooks.sh`.
+  Não usamos o framework `pre-commit` porque exige Python, ausente nesta
+  máquina — o arquivo existiria sem nunca rodar.
+
+### Fixed — `npm run lint` nunca funcionou (2026-07-27)
+
+O `.eslintrc.json` estendia `prettier/@typescript-eslint`, fundido em `prettier`
+na v8.0.0 do `eslint-config-prettier`. O comando abortava com erro de config
+antes de analisar qualquer arquivo, desde o commit inicial.
+
+Com o lint funcionando, a base acusou 12.449 problemas em 711 arquivos (74%
+formatação, herdados do fork do Whaticket). Em vez de um `--fix` que geraria um
+diff de 711 arquivos, o lint é **incremental**: CI e pre-commit checam apenas os
+arquivos alterados. Justificativa em `scripts/lint-changed.sh` e
+`backend/.eslintrc.README.md`.
+
+
 ### Changed — Endurecimento anti-banimento do WhatsApp (Baileys) (2026-07-26)
 
 Enquanto a plataforma opera via **Baileys** (API não-oficial), até a licença de

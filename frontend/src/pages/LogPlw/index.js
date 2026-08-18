@@ -194,11 +194,19 @@ const VersionLog = () => {
             {version}
           </VersionTitle>
           <ChangeList>
+            {/*
+              SEGURANÇA (2026-07-27 — CLAUDE.md XV.4): aqui havia
+              `dangerouslySetInnerHTML` com `change`, que vem do README de um
+              repositório de TERCEIROS (plwdesign/attwhaticket, buscado via API
+              do GitHub logo acima). Quem controla aquele repositório injetava
+              HTML/JS arbitrário no navegador — e esta página é restrita ao
+              super admin, ou seja, a conta de maior privilégio da plataforma.
+
+              O conteúdo é changelog: texto. Renderizar como texto elimina o
+              vetor sem perder nada.
+            */}
             {changes.map((change, index) => (
-              <ChangeItem 
-                key={index} 
-                dangerouslySetInnerHTML={{ __html: change }} 
-              />
+              <ChangeItem key={index}>{change}</ChangeItem>
             ))}
           </ChangeList>
         </VersionCard>

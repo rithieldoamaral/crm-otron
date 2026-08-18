@@ -41,6 +41,32 @@ server {
     add_header X-Content-Type-Options nosniff always;
     add_header Referrer-Policy strict-origin-when-cross-origin always;
 
+    # ── Bloqueio de arquivos sensíveis (CLAUDE.md XV.7) ─────────────
+    # Defesa em profundidade: hoje o nginx só faz proxy para o container do
+    # frontend, então .git/.env não estão no caminho servido. Mas um dia
+    # alguém adiciona um `root` aqui para servir estático — e aí a regra já
+    # está no lugar. Custo zero, cobre um erro fácil de cometer.
+    location ~ /\.(?!well-known) {
+        deny all;
+        access_log off;
+        log_not_found off;
+        return 404;
+    }
+
+    # Backups e dumps nunca são servidos pela web.
+    location ~* \.(sql|bak|dump|tar|gz|zip|old|swp)$ {
+        deny all;
+        return 404;
+    }
+
+    # Source maps não vão para produção (XV.7). O build do frontend já usa
+    # GENERATE_SOURCEMAP=false; esta regra é a segunda barreira, caso algum
+    # build futuro esqueça a flag.
+    location ~* \.map$ {
+        deny all;
+        return 404;
+    }
+
     location / {
         proxy_pass http://frontend:80;
         proxy_http_version 1.1;

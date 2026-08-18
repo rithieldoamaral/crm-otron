@@ -12,14 +12,11 @@ import DeleteUserService from "../services/UserServices/DeleteUserService";
 import SimpleListService from "../services/UserServices/SimpleListService";
 import User from "../models/User";
 import { dbLog, LOG_ACTIONS } from "../services/SystemLogService/dbLogger";
+import resolveCompanyId from "../helpers/ResolveCompanyId";
 
 type IndexQuery = {
   searchParam: string;
   pageNumber: string;
-};
-
-type ListQueryParams = {
-  companyId: string;
 };
 
 export const index = async (req: Request, res: Response): Promise<Response> => {
@@ -45,7 +42,7 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
     companyId: bodyCompanyId,
     queueIds,
     whatsappId,
-	allTicket
+    allTicket
   } = req.body;
   let userCompanyId: number | null = null;
 
@@ -57,10 +54,10 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
     requestUser = await User.findByPk(req.user.id);
   }
 
-  const newUserCompanyId = bodyCompanyId || userCompanyId; 
+  const newUserCompanyId = bodyCompanyId || userCompanyId;
 
   if (req.url === "/signup") {
-    if (await CheckSettingsHelper("userCreation") === "disabled") {
+    if ((await CheckSettingsHelper("userCreation")) === "disabled") {
       throw new AppError("ERR_USER_CREATION_DISABLED", 403);
     }
   } else if (req.user?.profile !== "admin") {
@@ -77,14 +74,17 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
     companyId: newUserCompanyId,
     queueIds,
     whatsappId,
-	allTicket
+    allTicket
   });
 
   const io = getIO();
-  io.to(`company-${userCompanyId}-mainchannel`).emit(`company-${userCompanyId}-user`, {
-    action: "create",
-    user
-  });
+  io.to(`company-${userCompanyId}-mainchannel`).emit(
+    `company-${userCompanyId}-user`,
+    {
+      action: "create",
+      user
+    }
+  );
 
   dbLog({
     action: LOG_ACTIONS.USER_CREATED,
@@ -110,7 +110,6 @@ export const update = async (
   req: Request,
   res: Response
 ): Promise<Response> => {
-
   const { id: requestUserId, companyId } = req.user;
   const { userId } = req.params;
   const userData = req.body;
@@ -172,12 +171,19 @@ export const remove = async (
 };
 
 export const list = async (req: Request, res: Response): Promise<Response> => {
-  const { companyId } = req.query;
-  const { companyId: userCompanyId } = req.user;
+  const { companyId: queryCompanyId } = req.query;
 
-  const users = await SimpleListService({
-    companyId: companyId ? +companyId : userCompanyId
-  });
+  // SEGURANÇA (2026-07-27 — CLAUDE.md XV.3): antes, `companyId ? +companyId
+  // : userCompanyId` fazia o valor do cliente vencer o da sessão, expondo
+  // nome e e-mail dos usuários de qualquer empresa. O painel de super admin
+  // (CompaniesManager) usa esse filtro de propósito, então o helper preserva
+  // o acesso para super e o nega para os demais.
+  const companyId = await resolveCompanyId(
+    req,
+    queryCompanyId as string | undefined
+  );
+
+  const users = await SimpleListService({ companyId });
 
   return res.status(200).json(users);
 };

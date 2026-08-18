@@ -472,6 +472,37 @@ Deploy main (automático)
 Monitoramento (SLA: disponibilidade > 99.5%)
 ```
 
+### 6.4 Lockfile e Determinismo de Dependências (INVIOLÁVEL)
+
+**O lockfile (`package-lock.json` / `poetry.lock` / `yarn.lock`) É código. Commite-o sempre.**
+
+* **Nunca coloque lockfile no `.gitignore`.** Sem ele, cada `npm install` resolve as versões de novo e cada ambiente instala um conjunto diferente de dependências. O repositório deixa de descrever o software que roda em produção.
+* **Deploy usa `npm ci`, nunca `npm install`.** `ci` instala exatamente o lockfile e falha se ele estiver dessincronizado do `package.json`. `install` reescreve o lockfile silenciosamente e é o vetor por onde entra código que ninguém revisou.
+* **Ranges (`^`, `~`) são perigosos em dependências que você acopla profundamente.** Para bibliotecas cuja tipagem ou protocolo você usa de forma acoplada (ex: `baileys`), **fixe a versão exata**. Um `^7.0.0-rc.9` autoriza o npm a instalar `rc13`.
+* **O risco real não é o build quebrar** — build quebrado é visível. O risco é a versão nova instalar, compilar e *rodar com comportamento diferente* em produção, sem ninguém saber.
+* **Precedente no projeto:** commit `aca9ffa`. `backend/.gitignore` ignorava `package-lock.json` → sem lockfile → `npm install` resolveu `baileys ^7.0.0-rc.9` para `rc13` → tipagem incompatível em `authState.ts`/`wbot.ts` → build de produção quebrado na VPS. Corrigido versionando o lockfile e fixando `baileys` em `7.0.0-rc.9`.
+
+### 6.5 Documento vs Realidade (INVIOLÁVEL)
+
+**Um portão descrito neste documento mas ausente do repositório não é um portão — é uma ficção que dá falsa sensação de cobertura.**
+
+* As Seções VI (CI/CD) e VII.1 (pre-commit) descrevem pipelines em detalhe. **Verifique se eles existem de fato** antes de assumir que qualquer validação automática está acontecendo.
+* **Se este documento exige um controle que o repositório não implementa, você DEVE apontar isso ao usuário** em vez de operar como se o controle existisse. Não é "fora de escopo" — é a diferença entre achar que se está protegido e estar.
+* **Como aplicar:** ao terminar qualquer trabalho, a pergunta não é "meus testes passaram na minha máquina?" e sim "existe algum portão automático entre a minha máquina e a produção?". Se não existe, diga isso explicitamente ao entregar.
+
+**Estado atual (atualizado em 2026-07-27):**
+
+| Controle | Arquivo | Situação |
+|---|---|---|
+| CI/CD | `.github/workflows/ci.yml` | ✅ Ativo — 4 jobs bloqueantes em `main` |
+| Pre-commit | `.githooks/pre-commit` | ✅ Ativo — instalar com `bash scripts/install-hooks.sh` |
+| Scan de secrets (profundo) | job `security` do CI | ✅ TruffleHog, bloqueante |
+| Lint | `scripts/lint-changed.sh` | ⚠️ Incremental — só arquivos alterados (base legada tem 12.449 problemas) |
+| `npm audit` | job `security` do CI | ⚠️ Relatório, não bloqueante (decisão registrada) |
+| Cobertura mínima ≥ 80% (II.1) | — | ❌ Não medida ainda; tech debt |
+
+**Um ponto de honestidade sobre o pre-commit:** a Seção VII.1 propõe `.pre-commit-config.yaml`, que exige Python (`pip install pre-commit`). Este projeto é 100% Node/TypeScript e a máquina de desenvolvimento não tem Python — o arquivo existiria sem nunca rodar, que é exatamente a falha que esta seção proíbe. Por isso o hook é bash puro em `.githooks/`, sem dependência nenhuma. **Ao portar VII.1 para um projeto novo, escolha a ferramenta que roda naquele ambiente, não a que está escrita aqui.**
+
 \---
 
 ## VII. Enforcement \& Verificação (NOVO)
@@ -1013,6 +1044,170 @@ Se já há código no repositório, **a linguagem já está decidida**. Siga o s
 
 \---
 
+## XV. 🛡️ Security Guidelines — Blindagem de Aplicação (INVIOLÁVEL)
+
+> **Por que esta seção existe:** até 2026-07-27 este documento tratava "segurança" como sinônimo de *gestão de secrets* (Seção IV) e *scan de dependências* (II.2) — ou seja, apenas segurança de **supply chain**. Não havia uma única regra sobre autorização, IDOR, XSS ou obscuridade. Foi por isso que o módulo Campanhas operou por muito tempo protegido apenas por um item de menu escondido no frontend, sem nenhum gate no backend: nenhuma regra escrita dizia que esconder ≠ proteger. Esta seção fecha essa lacuna.
+
+### 15.1 A Regra Mãe: Ocultação NÃO é Proteção
+
+**Se a única coisa que impede um usuário de acessar um recurso é o fato de ele não ver o botão, o recurso está desprotegido.**
+
+* Esconder item de menu, remover a rota do frontend, usar URL "difícil de adivinhar" (`/painel-admin-x9f2`), desabilitar botão via CSS ou `disabled`, ocultar campo do formulário: tudo isso é **UX**, nunca controle de acesso. O atacante não usa a sua interface — ele usa `curl`.
+* **Toda restrição de acesso precisa de duas camadas, nesta ordem de importância:**
+  1. **Backend (o gate real):** middleware que rejeita a requisição com 401/403. É a única camada que conta.
+  2. **Frontend (cosmético):** esconder o que o usuário não pode usar, para não oferecer um caminho que vai falhar.
+* **Cada esquema de autenticação precisa do seu próprio gate.** Um middleware que lê `req.user` (JWT) não protege uma rota que autentica por token de conexão. Ao adicionar um gate, verifique *como aquela rota específica* identifica quem está chamando.
+* **Como aplicar:** ao esconder qualquer coisa no frontend, pergunte *"se eu chamar esse endpoint direto no Postman com o JWT de um usuário comum, o que acontece?"*. Se a resposta não for **403**, o trabalho não está feito.
+* **Precedente no projeto:** commit `bf2c16a`. Esconder o menu de Campanhas não bastava — foi preciso `isSuper` em `campaignRoutes`, `contactListRoutes`, `contactListItemRoutes` e `campaignSettingRoutes`. E `/api/messages/send` autentica por token de conexão (não JWT), então o `isSuper` padrão não se aplicava: precisou de um middleware próprio, `isSuperCompany`.
+
+### 15.2 Autorização Vive no Backend. Sempre.
+
+**Toda regra de negócio, permissão, cargo e flag de privilégio é decidida e validada exclusivamente no servidor.**
+
+* **`localStorage`, `sessionStorage`, cookies não-assinados e o payload decodificado do JWT são dados sob controle do usuário.** Qualquer pessoa abre o DevTools e escreve `localStorage.setItem("profile", "admin")`. Use esses valores para **renderizar UI**, nunca para autorizar uma ação.
+* **Proibido:** endpoint que confia em `is_admin`, `role`, `companyId` ou `super` vindos do **corpo ou query da requisição**. Esses valores vêm da sessão validada no servidor (`req.user`), nunca do cliente.
+* **O frontend pode mentir sobre quem o usuário é. O backend não pode acreditar.** `<Can>`, `user.super` e afins são camada de apresentação — o backend revalida tudo, sempre, mesmo que "o frontend já checou".
+* **Sessão e revogação:** logout, troca de senha, desativação e mudança de cargo devem invalidar a sessão **no servidor**. Apagar o token do cliente não revoga nada — o token continua válido para quem o tiver copiado.
+* **Teste obrigatório de sessão (manual, a cada release):**
+  1. Faça login e abra uma rota protegida.
+  2. DevTools → Application → Clear site data (cookies + storage).
+  3. Recarregue (F5). A aplicação **deve** bloquear imediatamente e redirecionar para login.
+  4. Repita chamando a API direto com o token antigo após logout no servidor — deve retornar 401.
+* **Como aplicar:** para cada rota nova, escreva um teste que faz a chamada com o perfil **errado** e afirma 401/403. Teste que só verifica o caminho feliz não prova controle de acesso.
+
+### 15.3 IDOR e Isolamento Multi-Tenant (o risco nº 1 deste projeto)
+
+**Todo endpoint que recebe um ID DEVE provar que o usuário logado é dono legítimo daquele recurso.**
+
+* **IDOR (Insecure Direct Object Reference)** é trocar `/api/tickets/1042` por `/api/tickets/1043` e receber o ticket de outra empresa. Autenticação (*quem é você*) não é autorização (*isso é seu*) — estar logado não dá direito ao recurso.
+* **Neste projeto, a fronteira de isolamento é `companyId`.** Sendo um SaaS multi-tenant, vazamento entre empresas é a falha mais grave possível: expõe conversas, contatos e dados financeiros de um cliente para outro.
+* **Padrão obrigatório** — carregue o recurso e compare com a empresa da sessão antes de qualquer leitura ou escrita:
+
+```typescript
+const ticket = await Ticket.findByPk(id);
+
+// O companyId vem SEMPRE da sessão validada, nunca do request.
+if (ticket?.companyId !== companyId) {
+  throw new AppError("ERR_NO_PERMISSION", 403);
+}
+```
+
+* **Prefira escopar na própria query** (`where: { id, companyId }`) — assim é impossível esquecer a comparação depois.
+* **Vale para todo verbo, não só GET.** `UPDATE` e `DELETE` sem checagem de posse são piores: permitem destruir dados alheios.
+* **Enumeração:** IDs sequenciais tornam a varredura trivial. Onde for viável, use UUID — mas **UUID não substitui a checagem de posse**, apenas torna o chute mais caro (isso é obscuridade, ver 15.1).
+* **BaaS (Supabase / Firebase):** se o projeto usar BaaS, **RLS (Row Level Security) é obrigatório e não-negociável** em todas as tabelas, com política revisada tabela por tabela. Sem RLS, a chave anônima do cliente lê o banco inteiro. `anon key` no frontend é público por design — a única barreira é RLS.
+* **Como aplicar:** ao criar um endpoint com `:id`, escreva primeiro o teste "usuário da empresa A tenta acessar recurso da empresa B → 403". Se esse teste não existe, o endpoint não está pronto.
+
+### 15.4 Validação, Sanitização e Limite de Input (XSS e Injeção)
+
+**Todo input do usuário é hostil até prova em contrário — inclusive o que vem de outro sistema seu.**
+
+* **Valide na entrada (backend):** tipo, formato, faixa e **tamanho máximo** de todo campo. Validação no frontend é conveniência para o usuário, não defesa — é trivialmente contornável.
+* **Sanitize na saída, no contexto certo:** escapar para HTML, para SQL e para shell são operações diferentes. Escapar no lugar errado não protege.
+* **XSS — proibido renderizar conteúdo de usuário como HTML.** Nada de `dangerouslySetInnerHTML`, `innerHTML` ou `v-html` com dado que veio de fora. Se houver necessidade real de rich text, passe por uma biblioteca de sanitização com allowlist (`DOMPurify`), nunca por regex caseiro.
+* **SQL:** apenas queries parametrizadas ou o ORM. Concatenação de string com input de usuário em SQL é proibida, sem exceção.
+* **Path traversal:** nome de arquivo enviado pelo usuário nunca vai direto para o filesystem. Este projeto já tem `sanitizeFilename` — use-o.
+* **Prompt injection é o XSS da era LLM.** Mensagem de cliente que chega ao agente de IA é input não-confiável: pode conter instruções tentando sequestrar o comportamento do agente. Este projeto já tem `sanitizeUserMessage` no `AgentService` — toda entrada nova que alimente um LLM precisa passar por tratamento equivalente. **Ferramentas do agente que executam ações com efeito colateral devem validar autorização por conta própria**, nunca confiar que o LLM só as chamará em contexto legítimo.
+* **Limite o tamanho** de todo payload, upload e campo de texto. Sem teto, um único request derruba o serviço.
+
+### 15.5 Rate Limiting (controle de segurança, não de performance)
+
+**Rate limiting está na Seção XI.5 como tópico de performance. Isto aqui reclassifica: em rotas de autenticação é um controle de segurança OBRIGATÓRIO.**
+
+* **Obrigatório em:**
+  * **Login, signup, reset de senha, verificação de código** — sem limite, força bruta é só questão de tempo. Limite por IP **e** por conta alvo (limitar só por IP não impede ataque distribuído contra um usuário).
+  * **Rotas que consomem API paga** (LLM, transcrição, envio de mensagem) — sem limite, o prejuízo é financeiro e imediato.
+  * **Endpoints de listagem e busca** — freio contra scraping em massa da base.
+* **Complementos ao limite por requisição:** backoff progressivo após falhas seguidas, bloqueio temporário de conta e alerta em `ERROR` quando o limite for atingido repetidamente (tentativa de invasão é evento de log, não silêncio).
+* **Mensagem de erro genérica em auth:** "credenciais inválidas", nunca "usuário não existe" ou "senha incorreta" — a diferença entrega ao atacante a lista de contas válidas.
+* **Estado atual do projeto:** `express-rate-limit` aplicado a `/auth` (100 req / 15 min) em `app.ts:56` e em `geminiRoutes`. Ao criar rota sensível nova, aplique explicitamente — não há limite global cobrindo tudo.
+
+### 15.6 Dados em Repouso: Nada Crítico em Texto Puro
+
+* **Senhas:** somente hash com algoritmo lento e salt (`bcrypt`, `argon2`). **Nunca** criptografia reversível, nunca `md5`/`sha1`, nunca texto puro.
+* **Dados financeiros e de pagamento:** proibido armazenar número de cartão, CVV ou credencial bancária em texto puro. O padrão correto é **não armazenar** — delegue ao gateway e guarde apenas o token/ID da transação.
+* **Tokens de terceiros** (OAuth, chaves de API de cliente, sessões de WhatsApp) são credenciais: criptografados em repouso, acesso restrito, jamais em log.
+* **Logs e mensagens de erro nunca carregam:** senha, token, chave de API, `Authorization` header, CPF/CNPJ completo, dado de cartão. Stack trace de produção não vai para o cliente — vai para o log estruturado (Seção V), e o cliente recebe mensagem genérica + trace ID.
+* **Backups herdam a sensibilidade do dado.** Backup de banco com dado de cliente é criptografado, com acesso restrito, e nunca dentro do diretório servido pela aplicação.
+
+### 15.7 Exposição de Infraestrutura em Produção
+
+**Verifique explicitamente antes de cada deploy — nenhum destes deve ser acessível pela web:**
+
+| Item | Teste | Esperado |
+|---|---|---|
+| Repositório Git | `curl https://seu-dominio/.git/config` | 404 |
+| Variáveis de ambiente | `curl https://seu-dominio/.env` | 404 |
+| Backups | `/backup`, `/backups`, `/dump.sql`, `*.bak` | 404 |
+| Listagem de diretórios | `curl https://seu-dominio/uploads/` | 403/404, nunca "Index of" |
+| Source maps | `curl https://seu-dominio/static/js/main.*.js.map` | 404 em produção |
+| Banner de versão | Header `Server` / `X-Powered-By` | Removido |
+
+* **Listagem de diretórios (`Index of`) desligada** no servidor web. Diretório de uploads acessível é vazamento de todos os arquivos de todos os clientes.
+* **Source maps não vão para produção.** Eles reconstroem o código-fonte original a partir do bundle. Se precisar deles para monitoramento de erro, envie ao serviço (Sentry/GlitchTip) e não os publique.
+* **Painel de administração não se protege por caminho secreto** — protege-se por autenticação e autorização (15.1).
+* **Cabeçalhos de segurança ativos:** `helmet` (ou equivalente), CSP restritiva, HTTPS obrigatório com HSTS, cookies `Secure` + `HttpOnly` + `SameSite`.
+* **CORS com allowlist explícita.** `origin: true` ou `*` combinado com `credentials: true` desabilita a proteção na prática (CWE-942).
+
+### 15.8 Auditoria do Build do Frontend (procedimento obrigatório)
+
+A Seção IV.3 **proíbe** secrets no frontend. Esta subseção define **como verificar** que a proibição foi respeitada — regra sem verificação é torcida, não controle.
+
+**Rode a cada release, sobre o build de produção (nunca sobre o dev server):**
+
+1. `npm run build` e faça a busca direto nos artefatos gerados:
+
+```bash
+grep -rEi "sk-|api[_-]?key|secret|password|bearer |postgres://|mongodb://" build/ dist/
+```
+
+2. Abra a aplicação publicada → DevTools → aba **Sources** → percorra os bundles procurando por credencial, URL de banco, endpoint interno ou host de infraestrutura.
+3. DevTools → aba **Network** → inspecione as respostas da API: elas devem trazer **apenas** os campos que aquela tela usa. Endpoint que devolve o objeto de usuário inteiro (com hash de senha, token, dados de outros tenants) é vazamento, mesmo que a UI não mostre.
+4. Confirme que `.map` não está publicado.
+
+**Regra de ouro:** qualquer variável prefixada com `REACT_APP_`, `NEXT_PUBLIC_`, `VITE_` **é pública**. O prefixo é uma declaração de que aquele valor vai para o navegador. Se um secret precisa desse prefixo, a arquitetura está errada — a chamada tem que ir para o backend.
+
+### 15.9 Checklist de Segurança (validar antes de cada release)
+
+**Autorização**
+* [ ] Toda rota restrita tem gate no **backend**, não só menu escondido
+* [ ] Nenhuma decisão de permissão depende de `localStorage` ou de campo enviado pelo cliente
+* [ ] Cada esquema de autenticação (JWT, token de conexão, webhook) tem seu próprio gate
+* [ ] Existe teste automatizado chamando com o perfil errado e esperando 401/403
+* [ ] Limpar cookies + F5 bloqueia rota protegida imediatamente
+
+**Isolamento de dados**
+* [ ] Todo endpoint com `:id` valida posse contra o `companyId` da **sessão**
+* [ ] `UPDATE` e `DELETE` também validam posse (não só `GET`)
+* [ ] Se houver BaaS: RLS ativo e revisado em **todas** as tabelas
+
+**Input**
+* [ ] Validação de tipo, formato e **tamanho máximo** no backend
+* [ ] Zero `dangerouslySetInnerHTML`/`innerHTML` com dado de usuário
+* [ ] Queries parametrizadas; nenhuma concatenação de SQL
+* [ ] Entrada que alimenta LLM passa por sanitização de prompt injection
+
+**Ataques**
+* [ ] Rate limiting em login, signup e reset de senha (por IP **e** por conta)
+* [ ] Rate limiting em rotas que consomem API paga
+* [ ] Erro de login genérico (não revela se a conta existe)
+
+**Dados**
+* [ ] Senhas com `bcrypt`/`argon2` — nunca reversível
+* [ ] Nenhum dado de pagamento em texto puro
+* [ ] Nenhum secret, token ou dado pessoal em log
+* [ ] Backups criptografados e fora do diretório servido
+
+**Infra**
+* [ ] `.git`, `.env`, `/backup` retornam 404
+* [ ] Listagem de diretórios desativada
+* [ ] Source maps ausentes em produção
+* [ ] HTTPS + HSTS; cookies `Secure`/`HttpOnly`/`SameSite`
+* [ ] CORS com allowlist explícita
+* [ ] Build auditado conforme 15.8
+
+\---
+
 ## RESUMO VISUAL
 
 ```
@@ -1044,11 +1239,14 @@ Resultado: Código Maduro + Escalável + Auditável
 |-|-|
 |Arquitetura|I|
 |TDD|II.1|
-|Segurança|II.2 \& IV|
+|Segurança de supply chain (deps, secrets)|II.2 \& IV|
+|**Segurança de aplicação (authz, IDOR, XSS)**|**XV**|
 |Estrutura de pastas|III|
 |Secrets|IV|
 |Logs \& Observabilidade|V|
 |CI/CD|VI|
+|Lockfile \& determinismo de deps|VI.4|
+|Documento vs realidade|VI.5|
 |Pre-commit|VII.1|
 |Code Style|VIII|
 |Rollback|IX|
@@ -1056,11 +1254,25 @@ Resultado: Código Maduro + Escalável + Auditável
 |Performance|XI|
 |Fluxo esperado|XII|
 |Limites|XIII|
+|Ocultação ≠ proteção|XV.1|
+|Autorização no backend|XV.2|
+|IDOR \& multi-tenant|XV.3|
+|XSS \& prompt injection|XV.4|
+|Rate limiting (segurança)|XV.5|
+|Dados em repouso|XV.6|
+|Exposição de infra|XV.7|
+|Auditoria do build frontend|XV.8|
+|Checklist de release|XV.9|
 
 \---
 
-**Versão:** 2.0 (A+++)  
-**Data:** 2025-04-06  
+**Versão:** 2.1 (A+++)  
+**Data:** 2026-07-27  
 **Status:** Pronto para produção  
-**Próxima Review:** 2025-07-06 (trim)
+**Próxima Review:** 2026-10-27 (trim)
+
+**Changelog do documento:**
+
+* **2.1 (2026-07-27)** — Adicionada Seção XV (Security Guidelines): ocultação ≠ proteção, autorização no backend, IDOR/multi-tenant, XSS e prompt injection, rate limiting como controle de segurança, dados em repouso, exposição de infra e auditoria do build. Adicionadas VI.4 (lockfile) e VI.5 (documento vs realidade) a partir dos incidentes `bf2c16a` e `aca9ffa`.
+* **2.0 (2025-04-06)** — Versão base A+++.
 

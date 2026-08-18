@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import crypto from "crypto";
 import * as Yup from "yup";
 import { Op } from "sequelize";
 import sequelize from "../database";
@@ -94,9 +95,25 @@ export const oauthCallback = async (req: Request, res: Response): Promise<void> 
   // Sem esse campo o usuário só vê "Erro ao conectar" e não sabe o que fazer.
   const closePopup = (connected: boolean, errorCode?: string, message?: string) => {
     res.setHeader("Content-Type", "text/html");
+
+    // SEGURANÇA (2026-07-27 — CLAUDE.md XV.4): esta é a única página HTML
+    // servida pelo backend, e ela precisa de <script> inline para devolver
+    // o resultado do OAuth ao window.opener. Antes, a CSP global carregava
+    // `script-src 'unsafe-inline'` só por causa dela — o que desativava a
+    // proteção contra XSS em toda a aplicação.
+    //
+    // Agora a exceção é local e de uso único: um nonce aleatório por
+    // resposta autoriza exatamente este script. Nonce imprevisível é o que
+    // impede um payload injetado de se autorizar sozinho.
+    const nonce = crypto.randomBytes(16).toString("base64");
+    res.setHeader(
+      "Content-Security-Policy",
+      `default-src 'self'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'`
+    );
+
     const safeMsg = (message ?? "").replace(/[<>&"']/g, ""); // basic sanitize p/ JSON inline
     res.send(`<!DOCTYPE html><html><head><title>Google Calendar</title></head><body>
-<script>
+<script nonce="${nonce}">
   try {
     if (window.opener && !window.opener.closed) {
       window.opener.postMessage({

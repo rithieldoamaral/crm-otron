@@ -1,11 +1,12 @@
-import { Request, Response } from 'express';
+import { Request, Response } from "express";
 import DashboardDataService, {
   DashboardData,
-  Params,
-} from '../services/ReportService/DashbardDataService';
-import DashboardDataServiceV2 from '../services/ReportService/DashboardDataServiceV2';
-import { TicketsAttendance } from '../services/ReportService/TicketsAttendance';
-import { TicketsDayService } from '../services/ReportService/TicketsDayService';
+  Params
+} from "../services/ReportService/DashbardDataService";
+import DashboardDataServiceV2 from "../services/ReportService/DashboardDataServiceV2";
+import { TicketsAttendance } from "../services/ReportService/TicketsAttendance";
+import { TicketsDayService } from "../services/ReportService/TicketsDayService";
+import resolveCompanyId from "../helpers/ResolveCompanyId";
 
 type IndexQuery = {
   initialDate: string;
@@ -16,11 +17,10 @@ type IndexQuery = {
 export const index = async (req: Request, res: Response): Promise<Response> => {
   const params: Params = req.query;
   const { companyId } = req.user;
-  let daysInterval = 3;
 
   const dashboardData: DashboardData = await DashboardDataService(
     companyId,
-    params,
+    params
   );
   return res.status(200).json(dashboardData);
 };
@@ -30,7 +30,10 @@ export const index = async (req: Request, res: Response): Promise<Response> => {
  * Versão estendida com filtros de fila (queue_id) e atendente (user_id).
  * Mantém retrocompatibilidade total com os params do v1.
  */
-export const indexV2 = async (req: Request, res: Response): Promise<Response> => {
+export const indexV2 = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
   const params = req.query as any;
   const { companyId } = req.user;
 
@@ -39,7 +42,7 @@ export const indexV2 = async (req: Request, res: Response): Promise<Response> =>
     date_from: params.date_from,
     date_to: params.date_to,
     queue_id: params.queue_id ? parseInt(params.queue_id, 10) : undefined,
-    user_id: params.user_id ? parseInt(params.user_id, 10) : undefined,
+    user_id: params.user_id ? parseInt(params.user_id, 10) : undefined
   });
 
   return res.status(200).json(dashboardData);
@@ -47,14 +50,23 @@ export const indexV2 = async (req: Request, res: Response): Promise<Response> =>
 
 export const reportsUsers = async (
   req: Request,
-  res: Response,
+  res: Response
 ): Promise<Response> => {
-  const { initialDate, finalDate, companyId } = req.query as IndexQuery;
+  const {
+    initialDate,
+    finalDate,
+    companyId: queryCompanyId
+  } = req.query as IndexQuery;
+
+  // SEGURANÇA (2026-07-27 — CLAUDE.md XV.3): o companyId vinha direto da
+  // query, sem sequer consultar a sessão — qualquer usuário autenticado
+  // lia o relatório de atendimento de outra empresa.
+  const companyId = await resolveCompanyId(req, queryCompanyId);
 
   const { data } = await TicketsAttendance({
     initialDate,
     finalDate,
-    companyId,
+    companyId
   });
 
   return res.json({ data });
@@ -62,14 +74,21 @@ export const reportsUsers = async (
 
 export const reportsDay = async (
   req: Request,
-  res: Response,
+  res: Response
 ): Promise<Response> => {
-  const { initialDate, finalDate, companyId } = req.query as IndexQuery;
+  const {
+    initialDate,
+    finalDate,
+    companyId: queryCompanyId
+  } = req.query as IndexQuery;
+
+  // SEGURANÇA (2026-07-27 — CLAUDE.md XV.3): mesma falha de reportsUsers.
+  const companyId = await resolveCompanyId(req, queryCompanyId);
 
   const { count, data } = await TicketsDayService({
     initialDate,
     finalDate,
-    companyId,
+    companyId
   });
 
   return res.json({ count, data });

@@ -1579,3 +1579,115 @@ Serviços ≤ 30 min → grade de meia-hora (09:00, 09:30…). Demais → grade 
 **Escopo (CLAUDE.md II.6):** mudança mínima — só `reagendarEvento.ts` (imports + bloco de validação) e o spec correspondente. Nenhum refator adjacente. Encerra o tech debt aberto no Bug #39.
 
 ---
+
+## 2026-07-27 — Ausência de CI/CD real + atualização do CLAUDE.md (Seção XV)
+
+**Contexto:** o commit `aca9ffa` (feito pelo Claude Code na VPS) corrigiu um build de produção quebrado. A investigação da causa raiz revelou dois problemas de natureza diferente do bug reportado.
+
+**Causa raiz #1 — drift de dependência:** `backend/.gitignore` ignorava `package-lock.json`. Sem lockfile versionado, o deploy rodava `npm install` (não `npm ci`), que resolveu `baileys ^7.0.0-rc.9` para o `rc13` mais recente — tipagem incompatível com `authState.ts`/`wbot.ts`. Corrigido no próprio `aca9ffa` versionando o lockfile e fixando `baileys` em `7.0.0-rc.9`. O risco maior não era o build quebrar (visível), e sim a versão nova compilar e rodar com comportamento diferente em produção — potencialmente alterando os sinais de fingerprint que o `bf2c16a` acabou de calibrar.
+
+**Causa raiz #2 — não existe portão automático entre a máquina de desenvolvimento e produção:** o `CLAUDE.md` descreve em detalhe um pipeline de CI/CD (Seção VI) e pre-commit hooks (VII.1), mas o repositório **não possui** `.github/workflows/` nem `.pre-commit-config.yaml`. A única validação de build e testes é a execução manual local. A primeira vez que o projeto resolveu dependências do zero em ambiente real foi na própria VPS, em produção. Isso é o que permitiu o `aca9ffa` chegar até lá.
+
+**Causa raiz #3 — o `CLAUDE.md` cobria segurança de supply chain, não de aplicação:** auditoria dos 10 pontos de um checklist de segurança web contra o documento retornou 1 coberto (IV.3, secrets no frontend), 1 parcial (rate limiting, mas classificado como tópico de *performance* na XI.5) e 8 ausentes: autorização exclusivamente no backend, teste de invalidação de sessão, RLS/isolamento multi-tenant, IDOR, dados em texto puro, XSS/sanitização, segurança por obscuridade e exposição de `.git`/`.env`/`/backup`. Diversos desses controles **existem no código** (checagem de `companyId` em 14 services, `sanitizeFilename`, `sanitizeUserMessage`, `helmet`, CORS com allowlist, `express-rate-limit`) — mas por disciplina individual, não por regra escrita. Era essa ausência que explicava o módulo Campanhas ter operado protegido apenas por menu escondido até o `bf2c16a`: nenhuma regra dizia que esconder ≠ proteger.
+
+**Ação tomada (documentação apenas, sem mudança de código):**
+- Nova **Seção XV — Security Guidelines**: ocultação ≠ proteção (15.1), autorização no backend (15.2), IDOR e isolamento multi-tenant (15.3), validação/XSS/prompt injection (15.4), rate limiting reclassificado como controle de segurança (15.5), dados em repouso (15.6), exposição de infra (15.7), auditoria do build frontend (15.8) e checklist de release (15.9).
+- Nova **VI.4 — Lockfile e Determinismo de Dependências**: lockfile é código, `npm ci` no deploy, versão exata em libs de acoplamento profundo.
+- Nova **VI.5 — Documento vs Realidade**: obriga a verificar se um portão descrito no documento existe de fato no repositório, e a apontar a divergência ao usuário em vez de operar como se o controle existisse.
+- `AGENTS.md` e `GEMINI.md` ressincronizados com `CLAUDE.md` (estavam parados no commit inicial `5a8591e`, sem as seções II.5, II.6 e agora XV — os ambientes Antigravity/Gemini estavam operando sem essas regras).
+
+**TECH DEBT ABERTO (prioridade alta) — não implementado neste ciclo:**
+1. **`.github/workflows/ci.yml`** com `npm ci` + `tsc --noEmit` + jest + `npm run build`, bloqueante em `main`. Sozinho, teria pego o `aca9ffa` antes do push. **Este é o item que fecha a causa raiz #2.**
+2. **`.pre-commit-config.yaml`** com scan de secrets (`detect-secrets`/`git-secrets`). Hoje nada impede um `.env` de entrar num commit.
+3. **Auditoria do código contra a nova Seção XV** — o checklist 15.9 nunca foi rodado contra a base existente. Suspeitas conhecidas: `scriptSrc: 'unsafe-inline'` na CSP (`app.ts:48`) enfraquece a proteção anti-XSS; cobertura de checagem de `companyId` não foi verificada endpoint a endpoint.
+
+**Escopo (CLAUDE.md II.6):** mudança restrita a documentação (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `decisions_log.md`). Nenhuma linha de código de aplicação alterada — os três itens de tech debt acima são mudanças estruturais e aguardam aprovação explícita.
+
+---
+
+## 2026-07-27 (b) — CI/CD implementado + auditoria de segurança da Seção XV
+
+Fecha os três itens de tech debt abertos na entrada anterior. Trabalho dividido em duas frentes: **portões automáticos** (o que faltava de infraestrutura) e **auditoria do código** (o que a Seção XV cobrava e nunca havia sido verificado).
+
+### Frente 1 — Portões automáticos
+
+**`.github/workflows/ci.yml`** — 4 jobs bloqueantes em `main` e em PR:
+
+| Job | O que faz | Custo |
+|---|---|---|
+| `backend-build` | `npm ci` + `tsc --noEmit` + lint incremental + build | ~5 min |
+| `frontend-build` | `npm ci` + build + auditoria de bundle (XV.8) | ~8 min |
+| `backend-test` | suíte jest completa (serviço Redis) | ~30 min |
+| `security` | TruffleHog + `npm audit` + checagem de lockfile e `.env` | ~3 min |
+
+O `npm ci` do `backend-build` é o portão que fecha a causa raiz do `aca9ffa`: falha se o lockfile divergir do `package.json`, em ~3 minutos, sem banco.
+
+A auditoria de bundle do `frontend-build` automatiza a Seção XV.8, que antes dependia de alguém lembrar de abrir o DevTools: verifica ausência de source maps, ausência de credenciais de padrão conhecido e ausência de string de conexão de banco no build publicado.
+
+**`.githooks/pre-commit`** — bash puro, sem dependências. Bloqueia: arquivo `.env`, credenciais de padrão inequívoco (`sk-`, `AKIA`, `ghp_`, chave privada PEM), arquivo maior que 1MB e `package-lock.json` reaparecendo em `.gitignore`. Avisa (sem bloquear) sobre atribuições genéricas do tipo `password: "..."`. Roda ESLint nos `.ts` staged.
+
+*Decisão:* NÃO usamos o framework `pre-commit` (`.pre-commit-config.yaml`) apesar de a Seção VII.1 sugeri-lo. Ele exige Python + `pip`, ausentes nesta máquina, num projeto 100% Node. O arquivo existiria sem nunca executar — a falha descrita na própria Seção VI.5. Verificado com 5 testes manuais (3 de bloqueio, 2 de falso positivo, incluindo `.env.example`).
+
+**`npm run lint` estava quebrado desde o commit inicial.** O `.eslintrc.json` estendia `prettier/@typescript-eslint`, fundido em `prettier` na v8.0.0 do `eslint-config-prettier`; o comando abortava com erro de config antes de analisar qualquer arquivo. Corrigido.
+
+*Consequência:* com o lint funcionando, a base acusou **12.449 problemas em 711 arquivos** (74% formatação). Decisão: **lint incremental** (`scripts/lint-changed.sh`), só nos arquivos alterados. Rodar `--fix` na base geraria diff de 711 arquivos, quebrando `git blame`/`bisect` e violando II.6; lint bloqueante na base inteira faria o CI falhar em todo push até alguém desativá-lo. Duas regras do airbnb foram ajustadas com justificativa em `backend/.eslintrc.README.md`: `no-promise-executor-return` (off — proíbe o idioma padrão de sleep, usado no delay anti-banimento) e `no-await-in-loop` (warn — 131 ocorrências, e sequencialidade é obrigatória no envio ao WhatsApp).
+
+### Frente 2 — Auditoria contra a Seção XV (5 vulnerabilidades corrigidas)
+
+**1. IDOR + SQL injection em `ReportsController` (CRÍTICO)**
+
+Causa raiz: `companyId`, `initialDate` e `finalDate` vinham de `req.query` e eram interpolados via template literal direto no SQL. As rotas usam apenas `isAuth`. Duas falhas na mesma linha:
+
+- *IDOR (XV.3):* `?companyId=99` devolvia os relatórios da empresa 99 para qualquer usuário autenticado de qualquer empresa.
+- *SQLi (XV.4):* `?companyId=1 OR 1=1--` era concatenado sem aspas.
+
+Fix: helper `parseReportParams` lê `companyId` de `req.user`, valida formato das datas e as devolve para uso como `replacements` do Sequelize. 18 testes (TDD: 12 falharam antes do fix).
+
+**2. IDOR em `DashbardController`, `QueueController` e `UserController` (ALTO)**
+
+Mesmo padrão, três lugares: o `companyId` do cliente vencia o da sessão (`companyId ? +companyId : userCompanyId`). Expunha relatórios de atendimento, filas e a lista de usuários (nome + e-mail) de qualquer empresa.
+
+*Nuance que mudou o desenho do fix:* o acesso entre empresas é usado de verdade — o painel de super admin (`CompaniesManager`) chama `/users/list?companyId=X`. Remover o parâmetro quebraria a feature. Novo helper `resolveCompanyId` preserva a capacidade e a restringe: empresa da sessão por padrão, outra empresa só se `User.super` for verdadeiro no banco (nunca no token — XV.2), e tentativa negada vira `logger.warn` com contexto. 8 testes.
+
+**3. XSS armazenado em `LocationPreview` (ALTO, atacante remoto não autenticado)**
+
+`dangerouslySetInnerHTML` recebia `message.body.split('|')[2]` — o corpo bruto de uma mensagem recebida no WhatsApp. Qualquer pessoa que mandasse mensagem para o número da empresa executava JavaScript na sessão do atendente, com acesso ao token no `localStorage` e a todas as conversas do tenant. O HTML existia só para virar quebra de linha; substituído por `white-space: pre-line`.
+
+**4. XSS de terceiro em `LogPlw` (MÉDIO)**
+
+A página renderiza via `dangerouslySetInnerHTML` o README de `plwdesign/attwhaticket` — repositório de TERCEIROS, buscado pela API do GitHub. Quem controla aquele repositório injetava HTML/JS no navegador do **super admin**. Renderizado como texto.
+
+*Pendente de decisão do dono:* a página exibe o changelog de outro fornecedor. Provavelmente deveria apontar para o changelog próprio ou ser removida — mas isso é decisão de produto, não de segurança, e ficou fora do escopo.
+
+**5. CSP com `script-src 'unsafe-inline'` (MÉDIO)**
+
+Com `unsafe-inline`, a CSP não oferecia proteção real contra XSS — payload injetado roda exatamente como script inline. Existia por causa de UMA página: o popup de callback do OAuth do Google Calendar, única HTML servida pelo backend. Fix: `unsafe-inline` removido do escopo global; aquela rota gera um nonce aleatório por resposta e o declara em CSP própria. `style-src` mantém `unsafe-inline` (Material-UI injeta estilo em runtime; superfície muito menor).
+
+**6. Infra (XV.7)** — `server_tokens off` e `autoindex off` explícitos no `nginx.conf`; bloqueio de dotfiles (preservando `.well-known`), de `.sql/.bak/.dump/.tar/.gz/.zip` e de `.map` no template de site.
+
+**7. `frontend/.env.exemple`** — nome com typo, versionado, fora do padrão do `.gitignore`. Conteúdo só tinha placeholders (sem vazamento). Renomeado para `.env.example`.
+
+### Itens VERIFICADOS e já conformes (nenhuma ação necessária)
+
+- Senhas com `bcryptjs` (`hash`/`compare`) — XV.6
+- Tokens do Google criptografados em repouso (`aes-256-cbc`, `tokenCrypto.ts`) — XV.6
+- Login devolve `ERR_INVALID_CREDENTIALS` nos dois casos (conta inexistente e senha errada) — sem enumeração de contas, XV.5
+- Rate limiting em `/auth` (100 req/15 min) e em `geminiRoutes` — XV.5
+- CORS com allowlist explícita (CWE-942 já corrigido anteriormente) — XV.7
+- Build do frontend com `GENERATE_SOURCEMAP=false` — XV.7
+- Nenhum `.env` versionado; `.gitignore` cobre com `**/.env` e nega `.example` — IV.1
+- Nenhuma outra interpolação de template literal em SQL raw no projeto (13 usos de `sequelize.query` conferidos) — XV.4
+- Isolamento por `companyId` presente nos services (`ShowTicketService.ts:65` e outros 13) — XV.3
+
+### TECH DEBT que permanece aberto
+
+1. **Cobertura de testes não é medida contra o mínimo de 80% (CLAUDE.md II.1).** O CI coleta cobertura e publica como artefato, mas não há `coverageThreshold` configurado nem gate. Ativar exige antes medir a linha de base.
+2. **12.449 problemas de lint na base legada.** Estratégia definida (limpeza incremental conforme cada arquivo for tocado), mas o volume continua lá.
+3. **Frontend não tem lint nem testes.** O `frontend-build` do CI só compila. `CI=false` no build para não tratar warnings preexistentes do CRA como erro.
+4. **`npm audit` não é bloqueante.** Advisory em dependência transitiva frequentemente não tem correção disponível no dia; bloquear travaria hotfix por motivo alheio à mudança. Revisar o relatório periodicamente.
+5. **A auditoria não cobriu endpoint a endpoint.** São 45 arquivos de rota; a varredura buscou o *padrão* do bug (`companyId` vindo do cliente, interpolação em SQL, `dangerouslySetInnerHTML`) e corrigiu todas as ocorrências encontradas. Uma revisão exaustiva rota a rota continua pendente.
+6. **`nginx/sites/*.conf` reais vivem na VPS**, não no repositório — só há `.example`. As correções de XV.7 precisam ser aplicadas manualmente lá.
+
+**Escopo (CLAUDE.md II.6):** os fixes de segurança são mínimos e localizados. O `eslint --fix` foi aplicado apenas aos arquivos já tocados pelos fixes, não à base — coerente com a política de limpeza incremental.
+
+---
