@@ -7,7 +7,6 @@
   "extends": [
     "airbnb-base",
     "plugin:@typescript-eslint/recommended",
-    "prettier/@typescript-eslint",
     "plugin:prettier/recommended"
   ],
   "parser": "@typescript-eslint/parser",
@@ -17,6 +16,8 @@
   },
   "plugins": ["@typescript-eslint", "prettier"],
   "rules": {
+    "no-promise-executor-return": "off",
+    "no-await-in-loop": "warn",
     "@typescript-eslint/no-non-null-assertion": "off",
     "@typescript-eslint/no-unused-vars": [
       "error",

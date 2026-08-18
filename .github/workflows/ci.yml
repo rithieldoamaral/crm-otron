@@ -1,0 +1,349 @@
+# ══════════════════════════════════════════════════════════════════════
+# CI Pipeline — CRM Otron
+# ══════════════════════════════════════════════════════════════════════
+#
+# POR QUE ESTE ARQUIVO EXISTE (CLAUDE.md VI.5 — Documento vs Realidade):
+#
+# O CLAUDE.md descrevia um pipeline de CI/CD desde a versão 2.0, mas o
+# repositório nunca teve um. A consequência apareceu no commit `aca9ffa`:
+# o backend não versionava `package-lock.json`, o deploy rodava
+# `npm install` (não `npm ci`), o npm resolveu `baileys ^7.0.0-rc.9` para
+# o `rc13` e o build de produção quebrou — descoberto só na VPS, porque
+# não havia nenhum portão entre a máquina de desenvolvimento e produção.
+#
+# O job `backend-build` abaixo teria pego aquele bug em ~3 minutos, sem
+# banco de dados, antes do push chegar ao servidor. É o portão mais barato
+# e de maior valor do pipeline.
+#
+# ESTRUTURA (jobs rodam em paralelo, todos bloqueantes):
+#   backend-build   → npm ci + tsc + lint + build      (~5 min, sem serviços)
+#   frontend-build  → npm ci + build + auditoria XV.8  (~8 min, sem serviços)
+#   backend-test    → suíte jest completa              (~30 min, com Redis)
+#   security        → scan de secrets + npm audit      (~3 min)
+# ══════════════════════════════════════════════════════════════════════
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Permite disparo manual pela aba Actions do GitHub.
+  workflow_dispatch:
+
+# Princípio do menor privilégio: o workflow só lê o repositório.
+# Nenhum job aqui precisa escrever, então nada pode escrever.
+permissions:
+  contents: read
+
+# Se houver push novo na mesma branch, cancela a execução anterior —
+# evita fila de builds obsoletos consumindo minutos de runner.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Casa com `FROM node:20-alpine` dos Dockerfiles. CI que roda em versão
+  # diferente da produção testa um software que não é o que vai ao ar.
+  NODE_VERSION: "20"
+
+jobs:
+  # ══════════════════════════════════════════════════════════════════
+  # BACKEND — build e tipagem
+  # Este é o job que fecha a causa raiz do incidente `aca9ffa`.
+  # ══════════════════════════════════════════════════════════════════
+  backend-build:
+    name: Backend — build & typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # O lint incremental usa `git merge-base` para achar o ponto de
+          # divergência. Com o clone raso padrão (depth 1) não há histórico
+          # para comparar e o merge-base falha.
+          fetch-depth: 0
+
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      # `npm ci` (não `npm install`) é o ponto central deste job:
+      #   - instala EXATAMENTE o que está no lockfile, sem re-resolver;
+      #   - falha se o lockfile estiver dessincronizado do package.json.
+      # É a checagem que impede outro drift de versão como o do baileys.
+      - name: Install (npm ci — falha se o lockfile divergir)
+        working-directory: backend
+        run: npm ci
+
+      - name: Typecheck (tsc --noEmit)
+        working-directory: backend
+        run: npx tsc --noEmit
+
+      # Lint das LINHAS alteradas, não dos arquivos. A base legada (fork do
+      # Whaticket) acusa 12.449 problemas — 74% formatação — porque o
+      # `npm run lint` estava quebrado desde o commit inicial e nunca rodou.
+      # Cobrar o arquivo inteiro puniria quem encosta em código legado;
+      # rodar `--fix` na base geraria diff de 711 arquivos (viola II.6).
+      # Você responde pelas linhas que escreveu. Ver scripts/lint-diff.js.
+      - name: Lint (linhas alteradas)
+        run: node scripts/lint-diff.js --base "origin/${{ github.base_ref || 'main' }}"
+
+      - name: Build de produção
+        working-directory: backend
+        run: npm run build
+
+      # O tsconfig gera com `--sourceMap false`, mas a verificação é barata
+      # e a regra XV.7 é explícita: source map em produção reconstrói o
+      # código-fonte original a partir do bundle.
+      - name: Verificar ausência de source maps (CLAUDE.md XV.7)
+        working-directory: backend
+        run: |
+          if find dist -name "*.map" -type f | grep -q .; then
+            echo "::error::Source maps encontrados em backend/dist — viola CLAUDE.md XV.7"
+            find dist -name "*.map" -type f
+            exit 1
+          fi
+          echo "OK: nenhum source map no build do backend."
+
+  # ══════════════════════════════════════════════════════════════════
+  # FRONTEND — build + auditoria automatizada do bundle (CLAUDE.md XV.8)
+  # ══════════════════════════════════════════════════════════════════
+  frontend-build:
+    name: Frontend — build & auditoria de bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install (npm ci — falha se o lockfile divergir)
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build de produção
+        working-directory: frontend
+        env:
+          # O CRA trata warnings como erro quando CI=true. A produção
+          # (Dockerfile) builda sem essa flag, então forçá-la aqui faria o
+          # CI reprovar builds que sobem normalmente — o portão viraria
+          # ruído e seria desativado. CI reproduz a produção; apertar os
+          # warnings é item separado de tech debt (decisions_log.md).
+          CI: "false"
+          NODE_OPTIONS: "--max-old-space-size=4096"
+          # Valor de placeholder: o build só precisa que a variável exista.
+          # Em produção quem define é o .env do servidor.
+          REACT_APP_BACKEND_URL: "https://api.example.invalid"
+        run: npm run build
+
+      # ── Auditoria do bundle (CLAUDE.md XV.8) ──────────────────────
+      # A Seção IV.3 PROÍBE secrets no frontend; a XV.8 exige VERIFICAR.
+      # Regra sem verificação é torcida, não controle — então a
+      # verificação roda aqui, a cada push, em vez de depender de
+      # alguém lembrar de abrir o DevTools.
+
+      - name: XV.8 — source maps não podem ir para produção
+        working-directory: frontend
+        run: |
+          if find build -name "*.map" -type f | grep -q .; then
+            echo "::error::Source maps no build do frontend — reconstroem o código-fonte original."
+            find build -name "*.map" -type f
+            exit 1
+          fi
+          echo "OK: nenhum source map (npm run build usa GENERATE_SOURCEMAP=false)."
+
+      - name: XV.8 — nenhum secret no bundle publicado
+        working-directory: frontend
+        run: |
+          # Padrões de ALTA confiança: prefixos de credencial real.
+          # Deliberadamente NÃO inclui heurísticas genéricas (api_key=...)
+          # aqui: o bundle minificado tem milhares de identificadores e o
+          # ruído tornaria o portão inútil. O scan profundo com detecção
+          # de entropia roda no job `security`, sobre o código-fonte.
+          PATTERNS='sk-[A-Za-z0-9_-]{20,}|sk-ant-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|AIza[0-9A-Za-z_-]{35}'
+
+          if grep -rEl "$PATTERNS" build/ 2>/dev/null; then
+            echo "::error::Credencial detectada no bundle do frontend — viola CLAUDE.md IV.3."
+            echo "Chaves no frontend são públicas: toda chamada a API sensível deve passar pelo backend."
+            exit 1
+          fi
+          echo "OK: nenhuma credencial de alta confiança no bundle."
+
+      - name: XV.8 — nenhuma string de conexão de banco no bundle
+        working-directory: frontend
+        run: |
+          # URL de banco no frontend significa que o cliente conhece o host
+          # interno e, muitas vezes, as credenciais embutidas na URI.
+          if grep -rEl 'postgres(ql)?://[^"'"'"' ]+:[^"'"'"' ]+@|mysql://[^"'"'"' ]+:[^"'"'"' ]+@|mongodb(\+srv)?://[^"'"'"' ]+:[^"'"'"' ]+@|redis://[^"'"'"' ]*:[^"'"'"' ]+@' build/ 2>/dev/null; then
+            echo "::error::String de conexão de banco encontrada no bundle do frontend."
+            exit 1
+          fi
+          echo "OK: nenhuma string de conexão no bundle."
+
+  # ══════════════════════════════════════════════════════════════════
+  # BACKEND — suíte de testes
+  # ══════════════════════════════════════════════════════════════════
+  backend-test:
+    name: Backend — testes (jest)
+    runs-on: ubuntu-latest
+    # A suíte tem 96 arquivos de spec e o ts-jest compila cada um. Local
+    # (Windows + OneDrive) passa de 1h; em runner Linux fica bem abaixo,
+    # mas o teto é generoso de propósito: melhor um job lento que um job
+    # que falha por timeout e ensina o time a ignorar o CI.
+    timeout-minutes: 60
+
+    services:
+      # Os specs mockam os models do Sequelize (jest.mock), então Postgres
+      # NÃO é necessário. Já o ioredis abre conexão real na importação de
+      # alguns módulos: sem Redis o teste passa, mas polui o log com
+      # ETIMEDOUT e atrasa cada suíte no timeout do socket.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install (npm ci)
+        working-directory: backend
+        run: npm ci
+
+      # ts-jest recompila todo o TypeScript a cada execução. O cache reduz
+      # drasticamente o tempo das rodadas seguintes.
+      - name: Cache do ts-jest
+        uses: actions/cache@v4
+        with:
+          path: /tmp/jest_rs
+          key: ts-jest-${{ runner.os }}-${{ hashFiles('backend/package-lock.json', 'backend/tsconfig.json') }}
+          restore-keys: ts-jest-${{ runner.os }}-
+
+      - name: Rodar testes
+        working-directory: backend
+        env:
+          NODE_ENV: test
+          # `npm test` dispara pretest/posttest, que rodam migrations do
+          # Sequelize e exigem banco + build prévio em dist/. Os specs
+          # mockam os models, então chamamos o jest direto: mesmo conjunto
+          # de testes, sem a dependência de infraestrutura.
+          REDIS_URI: redis://127.0.0.1:6379
+          JWT_SECRET: ci-only-not-a-real-secret
+          JWT_REFRESH_SECRET: ci-only-not-a-real-secret
+          DB_DIALECT: postgres
+          DB_HOST: 127.0.0.1
+          DB_PORT: "5432"
+          DB_NAME: ci_unused
+          DB_USER: ci_unused
+          DB_PASS: ci_unused
+        run: npx jest --ci --runInBand=false --coverage
+
+      - name: Publicar relatório de cobertura
+        # Roda mesmo se os testes falharem — a cobertura da rodada parcial
+        # ainda ajuda a diagnosticar.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-backend
+          path: backend/coverage/
+          retention-days: 14
+
+  # ══════════════════════════════════════════════════════════════════
+  # SEGURANÇA — secrets e dependências vulneráveis
+  # ══════════════════════════════════════════════════════════════════
+  security:
+    name: Segurança — secrets & dependências
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # O TruffleHog compara commits; sem o histórico completo ele não
+          # tem o que comparar e o scan passa vazio dando falsa segurança.
+          fetch-depth: 0
+
+      # CLAUDE.md II.2 e VI.2: secret detectado é BLOQUEANTE.
+      # Este é o scan profundo (entropia + verificação de credencial viva)
+      # que complementa o hook local de pre-commit, que só cobre padrões
+      # de alta confiança.
+      - name: Scan de secrets (TruffleHog)
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --results=verified,unknown
+
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # NÃO-BLOQUEANTE por decisão explícita: advisory em dependência
+      # transitiva costuma não ter correção disponível no dia em que
+      # aparece. Bloquear aqui travaria hotfix por motivo alheio à mudança.
+      # O resultado é registrado para triagem — ver decisions_log.md.
+      - name: npm audit — backend (relatório)
+        working-directory: backend
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
+      - name: npm audit — frontend (relatório)
+        working-directory: frontend
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
+      # Impede a reincidência exata do `aca9ffa`: lockfile fora do
+      # versionamento. É uma checagem de 2 segundos contra um bug que
+      # custou um deploy quebrado.
+      - name: Lockfiles versionados (CLAUDE.md VI.4)
+        run: |
+          MISSING=0
+          for f in backend/package-lock.json frontend/package-lock.json; do
+            if ! git ls-files --error-unmatch "$f" > /dev/null 2>&1; then
+              echo "::error::$f não está versionado — viola CLAUDE.md VI.4"
+              MISSING=1
+            fi
+          done
+          if [ "$MISSING" -eq 1 ]; then
+            echo "Sem lockfile, cada ambiente instala versões diferentes e o repositório"
+            echo "deixa de descrever o software que roda em produção."
+            exit 1
+          fi
+          echo "OK: lockfiles do backend e do frontend versionados."
+
+      - name: Arquivos .env não podem estar versionados
+        run: |
+          # Procura .env versionado em qualquer nível, permitindo .env.example
+          # e .env.*.example, que são templates públicos por design (IV.1).
+          LEAKED=$(git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v '\.example$' || true)
+          if [ -n "$LEAKED" ]; then
+            echo "::error::Arquivo .env versionado — viola CLAUDE.md IV.1"
+            echo "$LEAKED"
+            exit 1
+          fi
+          echo "OK: nenhum .env versionado."

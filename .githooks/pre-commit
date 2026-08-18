@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+# ══════════════════════════════════════════════════════════════════════
+# Pre-commit hook — CRM Otron
+# ══════════════════════════════════════════════════════════════════════
+#
+# INSTALAÇÃO (uma vez por clone):
+#   git config core.hooksPath .githooks
+#   ou: bash scripts/install-hooks.sh
+#
+# POR QUE NÃO USAMOS O FRAMEWORK `pre-commit`:
+#
+# O CLAUDE.md VII.1 sugeria `.pre-commit-config.yaml`, que exige Python +
+# `pip install pre-commit`. Esta máquina não tem Python instalado e o
+# projeto é 100% Node/TypeScript — o arquivo existiria sem nunca rodar,
+# que é exatamente o modo de falha descrito na Seção VI.5 (documento vs
+# realidade). Este hook é bash puro: roda no Git Bash do Windows, no
+# macOS e no Linux, sem instalar nada.
+#
+# O QUE ESTE HOOK FAZ (rápido, local, alta confiança):
+#   1. Bloqueia commit de arquivo .env
+#   2. Bloqueia credenciais de padrão inequívoco (sk-, AKIA, chave privada)
+#   3. Avisa sobre atribuições suspeitas (sem bloquear — evita ruído)
+#   4. Bloqueia arquivo grande acidental (build, dump, binário)
+#   5. Impede que o lockfile volte para o .gitignore (incidente aca9ffa)
+#   6. Roda eslint nos arquivos .ts staged
+#
+# O QUE ELE **NÃO** FAZ:
+# Scan profundo com entropia e verificação de credencial viva — isso é
+# caro demais para rodar a cada commit. Fica no CI (job `security`, via
+# TruffleHog). Este hook é a primeira barreira, não a única.
+#
+# ESCAPE HATCH: `git commit --no-verify` pula tudo. Existe para
+# emergência real. Se você estiver usando com frequência, o hook está com
+# falso positivo — corrija o hook, não crie o hábito de contorná-lo.
+# ══════════════════════════════════════════════════════════════════════
+
+set -uo pipefail
+
+RED=$'\033[0;31m'; YELLOW=$'\033[0;33m'; GREEN=$'\033[0;32m'; NC=$'\033[0m'
+FAILED=0
+
+fail() { echo "${RED}✗ $1${NC}"; FAILED=1; }
+warn() { echo "${YELLOW}⚠ $1${NC}"; }
+ok()   { echo "${GREEN}✓ $1${NC}"; }
+
+# Apenas arquivos adicionados/copiados/modificados/renomeados. Arquivo
+# deletado não tem conteúdo para inspecionar.
+STAGED="$(git diff --cached --name-only --diff-filter=ACMR)"
+
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+echo "── pre-commit ────────────────────────────────────"
+
+# ══════════════════════════════════════════════════════════════════
+# 1. Arquivo .env nunca entra no repositório (CLAUDE.md IV.1)
+# ══════════════════════════════════════════════════════════════════
+# Permite .env.example e .env.*.example: são templates públicos por
+# design, com placeholders no lugar dos valores.
+ENV_FILES="$(echo "$STAGED" | grep -E '(^|/)\.env($|\.)' | grep -v '\.example$' || true)"
+if [ -n "$ENV_FILES" ]; then
+  fail "Arquivo .env no commit (CLAUDE.md IV.1):"
+  echo "$ENV_FILES" | sed 's/^/    /'
+  echo "    → Use .env.example com placeholders. O .env real fica só na máquina."
+fi
+
+# ══════════════════════════════════════════════════════════════════
+# 2. Credenciais de padrão inequívoco — BLOQUEIA
+# ══════════════════════════════════════════════════════════════════
+# Só padrões com prefixo próprio de provedor, onde falso positivo é
+# praticamente impossível. Heurística genérica fica no passo 3, como aviso.
+HIGH_CONFIDENCE='sk-[A-Za-z0-9_-]{20,}|sk-ant-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22,}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35}|-----BEGIN [A-Z ]*PRIVATE KEY-----|glpat-[A-Za-z0-9_-]{20}'
+
+for file in $STAGED; do
+  [ -f "$file" ] || continue
+  # Ignora o próprio hook e a documentação de segurança: eles CITAM os
+  # padrões para explicá-los, e o hook não pode se auto-bloquear.
+  case "$file" in
+    .githooks/*|.github/workflows/*|CLAUDE.md|AGENTS.md|GEMINI.md|decisions_log.md) continue ;;
+  esac
+
+  # Inspeciona apenas as linhas ADICIONADAS (prefixo +), não o arquivo
+  # inteiro: um secret já commitado no passado bloquearia todo commit
+  # futuro naquele arquivo, sem que este commit tenha culpa.
+  ADDED="$(git diff --cached -U0 -- "$file" | grep '^+' | grep -v '^+++' || true)"
+  [ -n "$ADDED" ] || continue
+
+  if echo "$ADDED" | grep -qE "$HIGH_CONFIDENCE"; then
+    fail "Credencial detectada em $file:"
+    echo "$ADDED" | grep -nE "$HIGH_CONFIDENCE" | head -5 | sed 's/^/    /'
+    echo "    → Mova para variável de ambiente (CLAUDE.md IV)."
+    echo "    → Se já foi enviada a algum lugar, ROTACIONE a chave: ela está comprometida."
+  fi
+done
+
+# ══════════════════════════════════════════════════════════════════
+# 3. Atribuições suspeitas — AVISA, não bloqueia
+# ══════════════════════════════════════════════════════════════════
+# Padrão genérico demais para bloquear: `password: "..."` aparece
+# legitimamente em teste, fixture, migration e mensagem de erro. Bloquear
+# aqui geraria falso positivo constante e treinaria todo mundo a usar
+# --no-verify — o que desativaria também as checagens do passo 2.
+SUSPICIOUS='(api[_-]?key|apikey|secret|passwd|password|token|auth)["'"'"']?\s*[:=]\s*["'"'"'][^"'"'"'{$][^"'"'"']{11,}["'"'"']'
+
+for file in $STAGED; do
+  [ -f "$file" ] || continue
+  case "$file" in
+    .githooks/*|.github/workflows/*|*.md|*.lock|package-lock.json) continue ;;
+  esac
+
+  ADDED="$(git diff --cached -U0 -- "$file" | grep '^+' | grep -v '^+++' || true)"
+  [ -n "$ADDED" ] || continue
+
+  HITS="$(echo "$ADDED" | grep -iEc "$SUSPICIOUS" || true)"
+  if [ "${HITS:-0}" -gt 0 ]; then
+    warn "Possível credencial literal em $file ($HITS ocorrência(s)) — confira antes de subir:"
+    echo "$ADDED" | grep -iE "$SUSPICIOUS" | head -3 | cut -c1-120 | sed 's/^/    /'
+  fi
+done
+
+# ══════════════════════════════════════════════════════════════════
+# 4. Arquivo grande acidental
+# ══════════════════════════════════════════════════════════════════
+# Alvo: dump de banco, build commitado por engano, mídia, binário.
+# Lockfile é isento — package-lock.json legitimamente passa de 1MB e
+# PRECISA ser versionado (VI.4).
+MAX_BYTES=$((1024 * 1024))
+for file in $STAGED; do
+  [ -f "$file" ] || continue
+  case "$file" in
+    *package-lock.json|*yarn.lock|*.lock) continue ;;
+  esac
+  SIZE=$(wc -c < "$file" 2>/dev/null || echo 0)
+  if [ "$SIZE" -gt "$MAX_BYTES" ]; then
+    fail "Arquivo grande no commit: $file ($((SIZE / 1024)) KB)"
+    echo "    → Git guarda para sempre. Se for build/dump/mídia, adicione ao .gitignore."
+  fi
+done
+
+# ══════════════════════════════════════════════════════════════════
+# 5. Lockfile não pode voltar para o .gitignore (incidente aca9ffa)
+# ══════════════════════════════════════════════════════════════════
+# Causa raiz do build quebrado na VPS: `backend/.gitignore` listava
+# `package-lock.json`. Sem lockfile, o deploy re-resolvia as dependências
+# e instalou baileys rc13 no lugar do rc9. Custou um deploy quebrado —
+# esta checagem custa milissegundos.
+for gitignore in $(echo "$STAGED" | grep -E '(^|/)\.gitignore$' || true); do
+  [ -f "$gitignore" ] || continue
+  if grep -qE '^\s*[^#]*package-lock\.json' "$gitignore"; then
+    fail "$gitignore está ignorando package-lock.json (CLAUDE.md VI.4)"
+    echo "    → Foi exatamente esta linha que quebrou o build de produção no commit aca9ffa."
+  fi
+done
+
+# ══════════════════════════════════════════════════════════════════
+# 6. ESLint nas LINHAS alteradas
+# ══════════════════════════════════════════════════════════════════
+# Por linha, não por arquivo. A base legada tem 12.449 problemas
+# preexistentes; cobrar o arquivo inteiro bloquearia uma correção de 6
+# linhas por causa de formatação que o autor não escreveu — e o caminho
+# curto a partir daí é adotar --no-verify como hábito, desativando junto
+# as checagens de credencial acima. Ver scripts/lint-diff.js.
+TS_FILES="$(echo "$STAGED" | grep -E '^backend/src/.*\.ts$' || true)"
+if [ -n "$TS_FILES" ]; then
+  if [ -d backend/node_modules/eslint ]; then
+    if ! node scripts/lint-diff.js --staged; then
+      fail "ESLint reprovou nas linhas alteradas."
+    fi
+  else
+    warn "backend/node_modules ausente — lint pulado. Rode 'npm ci' no backend."
+  fi
+fi
+
+# ══════════════════════════════════════════════════════════════════
+echo "──────────────────────────────────────────────────"
+if [ "$FAILED" -eq 1 ]; then
+  echo "${RED}Commit bloqueado.${NC} Corrija os itens acima."
+  echo "Emergência real: git commit --no-verify"
+  exit 1
+fi
+
+ok "pre-commit OK"
+exit 0

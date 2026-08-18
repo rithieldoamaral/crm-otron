@@ -14,7 +14,7 @@ import {
   calculateTypingDelayMs,
   waitWithTypingIndicator,
   TYPING_MIN_MS,
-  TYPING_MAX_MS,
+  TYPING_MAX_MS
 } from "../humanTypingDelay";
 
 describe("calculateTypingDelayMs", () => {
@@ -66,7 +66,9 @@ describe("calculateTypingDelayMs", () => {
   });
 
   it("nunca retorna valor negativo ou zero para texto vazio", () => {
-    expect(calculateTypingDelayMs("", noJitter)).toBeGreaterThanOrEqual(TYPING_MIN_MS);
+    expect(calculateTypingDelayMs("", noJitter)).toBeGreaterThanOrEqual(
+      TYPING_MIN_MS
+    );
   });
 });
 
@@ -83,9 +85,14 @@ describe("waitWithTypingIndicator", () => {
   });
 
   it("sinaliza 'composing' antes de esperar e 'paused' ao final", async () => {
-    await waitWithTypingIndicator(wbot, "5548999@s.whatsapp.net", 3000, fakeSleep);
+    await waitWithTypingIndicator(
+      wbot,
+      "5548999@s.whatsapp.net",
+      3000,
+      fakeSleep
+    );
 
-    const estados = wbot.sendPresenceUpdate.mock.calls.map((c) => c[0]);
+    const estados = wbot.sendPresenceUpdate.mock.calls.map(c => c[0]);
     expect(estados[0]).toBe("composing");
     expect(estados[estados.length - 1]).toBe("paused");
   });
@@ -93,25 +100,40 @@ describe("waitWithTypingIndicator", () => {
   it("renova o 'composing' em esperas longas (indicador do WhatsApp expira ~10s)", async () => {
     // 30s de espera precisa de várias renovações, senão o contato vê o
     // "digitando..." sumir e a mensagem chegar do nada depois.
-    await waitWithTypingIndicator(wbot, "5548999@s.whatsapp.net", 30000, fakeSleep);
+    await waitWithTypingIndicator(
+      wbot,
+      "5548999@s.whatsapp.net",
+      30000,
+      fakeSleep
+    );
 
     const composings = wbot.sendPresenceUpdate.mock.calls.filter(
-      (c) => c[0] === "composing"
+      c => c[0] === "composing"
     );
     expect(composings.length).toBeGreaterThan(1);
   });
 
   it("não renova desnecessariamente em esperas curtas", async () => {
-    await waitWithTypingIndicator(wbot, "5548999@s.whatsapp.net", 2000, fakeSleep);
+    await waitWithTypingIndicator(
+      wbot,
+      "5548999@s.whatsapp.net",
+      2000,
+      fakeSleep
+    );
 
     const composings = wbot.sendPresenceUpdate.mock.calls.filter(
-      (c) => c[0] === "composing"
+      c => c[0] === "composing"
     );
     expect(composings.length).toBe(1);
   });
 
   it("espera o tempo total solicitado, somando os intervalos", async () => {
-    await waitWithTypingIndicator(wbot, "5548999@s.whatsapp.net", 25000, fakeSleep);
+    await waitWithTypingIndicator(
+      wbot,
+      "5548999@s.whatsapp.net",
+      25000,
+      fakeSleep
+    );
 
     const total = sleepCalls.reduce((a, b) => a + b, 0);
     expect(total).toBe(25000);

@@ -10,6 +10,10 @@
 
 import { Request, Response, NextFunction } from "express";
 
+import Whatsapp from "../../models/Whatsapp";
+import User from "../../models/User";
+import isSuperCompany from "../isSuperCompany";
+
 jest.mock("../../models/Whatsapp", () => ({
   __esModule: true,
   default: { findByPk: jest.fn() }
@@ -18,10 +22,6 @@ jest.mock("../../models/User", () => ({
   __esModule: true,
   default: { findOne: jest.fn() }
 }));
-
-import Whatsapp from "../../models/Whatsapp";
-import User from "../../models/User";
-import isSuperCompany from "../isSuperCompany";
 
 // AppError NAO estende Error, entao .rejects.toThrow() nao o reconhece.
 // Asserimos a forma do objeto — de quebra valida o statusCode 401.
@@ -60,7 +60,10 @@ describe("isSuperCompany middleware", () => {
 
     await expect(
       isSuperCompany(req as Request, res as Response, next)
-    ).rejects.toMatchObject({ message: "Acesso não permitido", statusCode: 401 });
+    ).rejects.toMatchObject({
+      message: "Acesso não permitido",
+      statusCode: 401
+    });
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -69,7 +72,10 @@ describe("isSuperCompany middleware", () => {
 
     await expect(
       isSuperCompany(req as Request, res as Response, next)
-    ).rejects.toMatchObject({ message: "Acesso não permitido", statusCode: 401 });
+    ).rejects.toMatchObject({
+      message: "Acesso não permitido",
+      statusCode: 401
+    });
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -78,7 +84,10 @@ describe("isSuperCompany middleware", () => {
 
     await expect(
       isSuperCompany(req as Request, res as Response, next)
-    ).rejects.toMatchObject({ message: "Acesso não permitido", statusCode: 401 });
+    ).rejects.toMatchObject({
+      message: "Acesso não permitido",
+      statusCode: 401
+    });
     expect(next).not.toHaveBeenCalled();
     // Não deve nem consultar o banco sem identificar a conexão
     expect(mockWhatsappFind).not.toHaveBeenCalled();
