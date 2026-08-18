@@ -5,6 +5,7 @@
  */
 
 import AgentAction from "../../models/AgentAction";
+import recordTokenUsage from "../TokenGovernance/recordTokenUsage";
 import Schedule from "../../models/Schedule";
 import Ticket from "../../models/Ticket";
 import { cacheLayer } from "../../libs/cache";
@@ -471,6 +472,20 @@ export async function runSecretaryLoop(input: SecretaryLoopInput): Promise<Secre
       systemPromptComSeguranca,
       { temperature: 0.3 }
     );
+
+    // MEDIÇÃO (2026-08-17): uma linha por CHAMADA, antes de qualquer
+    // ramificação por tool call. A Secretária opera fora de ticket, então
+    // ticketId vai nulo. Ver directives/token_governance.md.
+    await recordTokenUsage({
+      companyId,
+      ticketId: null,
+      source: "secretary",
+      provider: providerConfig.provider,
+      model: providerConfig.model,
+      usage: response.usage,
+      finishReason: response.finishReason,
+      toolCallCount: response.toolCalls?.length ?? 0
+    });
 
     // Erro do provedor (HTTP, timeout): encerra com graça em vez de tratar o
     // conteúdo de erro como resposta. handleSecretaryMessage envia o FALLBACK.

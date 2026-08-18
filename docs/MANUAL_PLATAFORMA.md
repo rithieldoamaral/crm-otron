@@ -17,7 +17,7 @@
 9. [🤖 IA: Agente de Atendimento + Secretária — o diferencial](#9-inteligência-artificial-dois-agentes-distintos)
 10. [💳 Pagamentos — Gerencianet, Mercado Pago, Asaas](#10-pagamentos)
 11. [📞 Como funciona um atendimento na prática](#11-como-funciona-um-atendimento)
-12. [👑 Super Admin — empresas, planos e cobranças](#12-super-admin)
+12. [👑 Super Admin — empresas, planos, cobranças e consumo de IA](#12-super-admin)
 13. [FAQ rápido](#13-faq)
 
 ---
@@ -971,6 +971,73 @@ Como super, você vê logs de TODAS as empresas. Útil para:
 - Investigar reclamação ("essa empresa deletou dado X?")
 - Detectar abuso ("essa empresa criou 50 usuários em 1 hora")
 - Conformidade LGPD (provar que dados foram acessados conforme política)
+
+---
+
+### 12.6 Tokens — consumo e custo de IA por empresa
+
+**SISTEMA → Configurações → aba "Tokens"** (só aparece para super admin)
+
+Mostra quanto a inteligência artificial custa, empresa por empresa. É onde
+você descobre qual cliente está caro **antes** de a fatura do provedor chegar.
+
+**Os quatro números do topo**
+
+| Card | O que significa |
+|---|---|
+| Custo total | Quanto a operação inteira custou no período |
+| Custo por atendimento | Média entre todas as empresas — a métrica mais útil |
+| Atendimentos | Conversas que usaram IA, e quantas chamadas ao modelo |
+| Margem | Cobrado menos custo. Zero enquanto o markup for 0 |
+
+**Custo por atendimento é o número que importa.** Total alto pode ser
+simplesmente uma empresa grande atendendo muita gente — isso é bom. O que
+merece atenção é custo por atendimento fora da curva: significa conversa
+longa demais, e conversa longa custa caro porque todo o histórico é reenviado
+ao modelo a cada mensagem.
+
+**Tabela por empresa**
+
+Ordenada do maior consumidor para o menor. A coluna **Cache** mostra o
+percentual de texto reaproveitado — hoje fica em 0% porque o *prompt caching*
+ainda não foi ativado. É a maior oportunidade de economia da plataforma.
+
+O selo **"preço faltando"** ao lado de uma empresa significa que ela usou um
+modelo sem preço cadastrado. O custo dela aparece menor do que realmente é —
+não é uma empresa barata, é um custo desconhecido.
+
+**Tabela por modelo**
+
+Mostra onde o dinheiro está concentrado. Serve para comparar: se um modelo
+mais barato entrega qualidade parecida no seu caso, a troca aparece aqui.
+
+**Creditar uma empresa**
+
+Botão **CREDITAR** na linha da empresa. Informe valor e motivo — o motivo fica
+no extrato e precisa fazer sentido daqui a seis meses ("Compra de créditos —
+PIX 17/08", não "ajuste").
+
+**Importante: ninguém é bloqueado por falta de crédito.** Isso é intencional.
+Se o agente parasse de responder ao acabar o saldo, quem ficaria sem resposta
+seria o cliente do seu cliente, no meio de uma conversa no WhatsApp — e a
+culpa recairia sobre a plataforma. Nesta fase o sistema mede e avisa; você
+negocia com o cliente antes que vire problema.
+
+**Se um modelo aparecer sem preço**
+
+Cadastre pela API (a tela de preços ainda não foi construída):
+
+```
+PUT /token-governance/prices
+{ "provider": "qwen", "model": "qwen-plus",
+  "inputPricePerMillion": 0.4, "outputPricePerMillion": 1.2,
+  "cachedInputPricePerMillion": 0.04 }
+```
+
+Preços ficam em USD por 1 milhão de tokens, como os provedores publicam.
+Alterar um preço **não** reescreve o custo já registrado: cada consumo
+guardou o preço vigente no momento em que aconteceu.
+
 
 ---
 

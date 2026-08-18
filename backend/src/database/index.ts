@@ -45,6 +45,9 @@ import ServiceProfessional from "../models/ServiceProfessional";
 import UserCalendar from "../models/UserCalendar";
 import UserWorkingHours from "../models/UserWorkingHours";
 import AgentAction from "../models/AgentAction";
+import TokenUsage from "../models/TokenUsage";
+import ModelPrice from "../models/ModelPrice";
+import CreditLedger from "../models/CreditLedger";
 import SystemLog from "../models/SystemLog";
 import ServiceHistory from "../models/ServiceHistory";
 import Coupon from "../models/Coupon";
@@ -114,6 +117,9 @@ const models = [
   UserCalendar,
   UserWorkingHours,
   AgentAction,
+  TokenUsage,
+  ModelPrice,
+  CreditLedger,
   SystemLog,
   ServiceHistory,
   Coupon,

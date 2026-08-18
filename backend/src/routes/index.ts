@@ -43,6 +43,7 @@ import serviceCatalogRoutes from "./serviceCatalogRoutes";
 import packageRoutes from "./packageRoutes";
 import financeRoutes from "./financeRoutes";
 import globalSettingsRoutes from "./globalSettingsRoutes";
+import tokenGovernanceRoutes from "./tokenGovernanceRoutes";
 
 const routes = Router();
 
@@ -90,5 +91,6 @@ routes.use(serviceCatalogRoutes);
 routes.use(packageRoutes);
 routes.use(financeRoutes);
 routes.use(globalSettingsRoutes);
+routes.use(tokenGovernanceRoutes);
 
 export default routes;

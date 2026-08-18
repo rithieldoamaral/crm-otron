@@ -17,6 +17,7 @@ import AgentSettings from "../../components/Settings/AgentSettings";
 import IntegrationSettings from "../../components/Settings/IntegrationSettings";
 import CalendarSettings from "../../components/Settings/CalendarSettings";
 import NewCompaniesManager from "../../pages/Companies";
+import TokenGovernance from "../../components/Settings/TokenGovernance";
 
 import { i18n } from "../../translate/i18n.js";
 import { toast } from "react-toastify";
@@ -184,6 +185,7 @@ const SettingsCustom = () => {
           {isSuper() ? <Tab label="Planos" value={"plans"} /> : null}
           {isSuper() ? <Tab label="Ajuda" value={"helps"} /> : null}
           {isSuper() ? <Tab label="Chaves LLMs" value={"integrations"} /> : null}
+          {isSuper() ? <Tab label="Tokens" value={"tokens"} /> : null}
         </Tabs>
         <Paper className={classes.paper} elevation={0}>
           <TabPanel
@@ -266,6 +268,18 @@ const SettingsCustom = () => {
                 name={"integrations"}
               >
                 <IntegrationSettings />
+              </TabPanel>
+            )}
+          />
+          <OnlyForSuperUser
+            user={currentUser}
+            yes={() => (
+              <TabPanel
+                className={classes.container}
+                value={tab}
+                name={"tokens"}
+              >
+                <TokenGovernance />
               </TabPanel>
             )}
           />

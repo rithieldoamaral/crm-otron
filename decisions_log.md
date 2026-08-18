@@ -1691,3 +1691,139 @@ Com `unsafe-inline`, a CSP não oferecia proteção real contra XSS — payload 
 **Escopo (CLAUDE.md II.6):** os fixes de segurança são mínimos e localizados. O `eslint --fix` foi aplicado apenas aos arquivos já tocados pelos fixes, não à base — coerente com a política de limpeza incremental.
 
 ---
+
+## 2026-08-17 — Módulo de governança de tokens (superadmin)
+
+Ver `directives/token_governance.md` para a especificação completa.
+
+### Descoberta que mudou a ordem do trabalho
+
+O pedido era um painel de consumo. A investigação mostrou que **o dado
+existente não era utilizável para cobrança**, então o módulo começou por
+corrigir a medição, não pela tela.
+
+`AgentAction` já tinha `inputTokens`/`outputTokens`, mas o registro acontecia
+DENTRO do laço de tool calls (`AgentService/index.ts`, `secretaryLoop.ts`):
+
+```js
+for (const toolCall of response.toolCalls) {
+  await AgentAction.create({ ..., inputTokens: response.usage?.inputTokens })
+}
+```
+
+| Cenário | Efeito |
+|---|---|
+| Turno com N tool calls | N linhas, cada uma com o consumo INTEIRO do turno → conta N× |
+| Turno só de texto (sem tool) | Nenhuma linha → consumo perdido |
+
+Num agente de atendimento a maioria dos turnos é texto puro ("bom dia",
+"quanto custa?", "ok obrigado"). O somatório subcontava o grosso e inflava o
+resto — número sem sentido nas duas direções. Um painel sobre esse dado seria
+pior que nenhum painel: daria confiança num número errado.
+
+### Decisões de produto (aprovadas pelo dono em 2026-08-17)
+
+**1. Medir e alertar; NÃO bloquear.** Se o crédito acabasse e o sistema
+bloqueasse, quem ficaria sem resposta não seria o cliente da plataforma, e sim
+o cliente DELE, no meio de uma conversa no WhatsApp — o agente simplesmente
+emudeceria. Numa plataforma de atendimento esse é o pior modo de falha:
+sacrifica a reputação do cliente para proteger margem, e ele culparia a
+plataforma, com razão. O bloqueio está implementado atrás de
+`enforcementEnabled`, desligado por padrão; um teste trava esse default.
+
+**2. Custo e preço separados desde o início.** O markup é 0 nesta fase (o dono
+absorve), mas cada linha grava custo real e preço imputado. Cobrar depois não
+exige migration nem recálculo de histórico.
+
+**3. Histórico anterior descartado.** O painel só considera consumo a partir da
+correção da medição. Os `AgentActions` antigos permanecem como log de
+auditoria, agora documentados no próprio model como NÃO-SOMÁVEIS.
+
+### Decisões técnicas
+
+**Medição separada de auditoria.** `AgentActions` responde "o que o agente
+fez" (uma linha por tool); `TokenUsages` responde "quanto custou" (uma linha
+por chamada ao LLM). Misturar as duas foi a origem do bug.
+
+**Preço congelado no registro.** Cada linha de `TokenUsages` grava o preço
+unitário e a cotação usados. Recalcular consumo antigo com o preço de hoje
+reescreveria histórico financeiro e invalidaria qualquer valor já informado ao
+cliente — e provedores chineses mudam preço com frequência.
+
+**Preço em tabela, não no código.** `ModelPrices` é editável pelo painel, pelo
+mesmo motivo do seletor dinâmico de modelos: cadastrar modelo novo não pode
+exigir deploy. O seed cobre só modelos cujo preço é conhecido com confiança;
+os demais aparecem como "preço não cadastrado" em vez de receberem valor
+chutado. Estimativa silenciosa vira número errado com aparência de certo.
+
+**Saldo é soma do razão, nunca coluna.** Coluna de saldo mutável sofre lost
+update sob concorrência (dois débitos leem o mesmo valor, um sobrescreve o
+outro) e apaga o rastro de como a empresa chegou ali. Um teste de concorrência
+trava essa escolha.
+
+**DECIMAL, não FLOAT,** em tudo que é dinheiro: binário flutuante acumula erro
+quando somado sobre milhares de chamadas.
+
+**Sem arredondamento no cálculo.** 1.000 tokens a US$1/milhão custam US$0,001;
+arredondar para centavos no cálculo zeraria o valor e, somado em milhares de
+chamadas, o custo sumiria. Arredondamento é problema da exibição.
+
+**Falha de contabilidade nunca derruba atendimento.** `recordTokenUsage` e
+`recordConsumption` capturam a própria exceção, logam com contexto
+(`logger.error`, nunca catch silencioso — II.5) e seguem.
+
+**`onDelete: RESTRICT`** nas FKs de `TokenUsages` e `CreditLedgers`: histórico
+financeiro não evapora junto com a empresa.
+
+**Idempotência no banco (UNIQUE),** não no código: retry da mesma chamada não
+pode virar débito duplicado, e a garantia não pode depender de alguém lembrar
+de checar antes.
+
+### Segurança
+
+Todas as rotas exigem `isSuper` (CLAUDE.md XV.1/XV.3): consumo e custo por
+empresa são dados comerciais sensíveis — um cliente não pode ver o de outro,
+nem o próprio custo bruto, que revelaria a margem da plataforma. Um teste
+estrutural falha se alguém adicionar rota sem o gate. Todas as queries usam
+`replacements` (XV.4), lição direta da auditoria de 2026-07-27.
+
+### A alavanca que o módulo torna visível
+
+O maior custo desta arquitetura é o system prompt + definições de tools
+reenviados a cada turno (~4.000 dos ~22.000 tokens de entrada por conversa).
+Anthropic e DeepSeek descontam esse prefixo repetido via prompt caching, que
+**não está em uso**. `cachedInputTokens` existe desde o início justamente para
+tornar a economia mensurável quando o caching for ativado. Se o painel mostrar
+consumo alto, ativar cache é a primeira alavanca — antes de vender crédito.
+
+### Verificação
+
+51 testes novos, todos escritos antes do código: modelPricing 13,
+recordTokenUsage 12, creditLedger 18, usageReports 15 (pura), rotas 5.
+`tsc --noEmit` limpo, migrations aplicadas no Postgres local, e o módulo
+validado ponta a ponta no navegador com dados reais: agregação correta,
+sinalização de modelo sem preço funcionando, concessão de crédito gravando no
+razão, rota sem token devolvendo 401 e crédito negativo devolvendo 400.
+
+### TECH DEBT aberto
+
+1. **Consumo não debita o razão automaticamente.** `recordTokenUsage` grava em
+   `TokenUsages`; `recordConsumption` existe e é testado, mas nada os liga
+   ainda. Falta um job periódico que consolide o consumo do período em
+   lançamento de consumo. Enquanto o markup é 0 e ninguém tem crédito, o saldo
+   não é usado para decisão — por isso não bloqueou a entrega.
+2. **Alertas de 80%/100% não são enviados.** `evaluateThresholds` calcula e é
+   testado, mas nenhum canal de notificação foi ligado. Depende do item 1.
+3. **Tela de cadastro de preços não foi construída.** As rotas
+   `GET/PUT /token-governance/prices` existem e funcionam; a UI ainda não.
+   Modelos sem preço aparecem sinalizados no painel, mas o cadastro é via API.
+4. **Preços do seed precisam de conferência** nas docs oficiais de cada
+   provedor antes de qualquer cobrança real.
+5. **Aviso do Material-UI ao abrir aba super por URL direta** ("None of the
+   Tabs' children match"). PREEXISTENTE — ocorre igual em `?tab=plans` e
+   `?tab=companies`, porque as abas super só renderizam depois que
+   `currentUser` carrega. Não introduzido por este módulo; não corrigido aqui
+   por mínima mudança (II.6).
+6. **Sem cobertura de teste no frontend** — segue o débito geral do projeto.
+
+---

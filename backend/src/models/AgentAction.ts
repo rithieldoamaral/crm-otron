@@ -57,6 +57,17 @@ class AgentAction extends Model<AgentAction> {
   @Column({ type: DataType.STRING(100), allowNull: true })
   model: string;
 
+  /**
+   * ATENCAO: NAO SOMAR PARA COBRANCA.
+   *
+   * Estes campos repetem o consumo do TURNO inteiro em cada tool executada:
+   * um turno com 3 tools grava o mesmo valor 3 vezes, e um turno sem tool
+   * nao grava nada. Servem como contexto de auditoria por tool ("quanto
+   * custou o turno em que esta tool rodou"), nunca como base financeira.
+   *
+   * A fonte de verdade de consumo e a tabela `TokenUsages`, uma linha por
+   * chamada ao LLM. Ver directives/token_governance.md.
+   */
   @Column({ type: DataType.INTEGER, allowNull: true })
   inputTokens: number;
 

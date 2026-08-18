@@ -7,6 +7,60 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Added — Módulo de governança de tokens no painel superadmin (2026-08-17)
+
+Nova aba **Tokens** em Configurações, visível apenas para o superadmin, com o
+consumo de LLM de cada empresa: custo total, custo por atendimento, tokens por
+atendimento, quebra por modelo e concessão de créditos.
+
+**A entrega começou por um bug, não pela tela.** A investigação mostrou que o
+dado de consumo existente não servia para cobrança: os tokens eram gravados
+dentro do laço de tool calls, então um turno com 3 ferramentas contava o
+consumo 3 vezes e um turno só de texto — a maioria, num agente de atendimento
+— não contava nenhuma. O somatório subcontava o grosso e inflava o resto.
+Um painel sobre esse dado seria pior que nenhum painel.
+
+- **Medição corrigida**: nova tabela `TokenUsages`, uma linha por CHAMADA ao
+  modelo, gravada logo após o retorno do provider — nos três pontos onde a
+  plataforma chama LLM (agente, secretária e sumarização de contexto).
+- **Preço congelado no registro**: cada linha guarda o preço unitário e a
+  cotação do dólar usados. Mudar o preço de um modelo amanhã não reescreve o
+  custo de ontem.
+- **Catálogo de preços editável** (`ModelPrices`), não hardcoded — cadastrar
+  modelo novo não exige deploy. Modelos sem preço aparecem sinalizados como
+  "preço não cadastrado" em vez de receberem valor chutado: custo zero não
+  significa "barato", significa "desconhecido".
+- **Razão de créditos** (`CreditLedgers`): saldo é a soma dos lançamentos,
+  nunca uma coluna mutável. Concessão, consumo e ajuste ficam no extrato.
+- **Métrica em destaque é custo por atendimento**, não total de tokens. Token
+  é unidade interna; o número que denuncia problema é quanto custa cada
+  conversa — é ele que revela empresa com conversa anormalmente longa.
+
+**Bloqueio por falta de crédito está implementado e DESLIGADO de propósito.**
+Se o agente parasse de responder ao acabar o saldo, quem ficaria no vácuo
+seria o cliente do cliente, no meio de uma conversa no WhatsApp. Nesta fase o
+sistema mede e alerta; a trava comercial (`enforcementEnabled`) fica pronta
+para quando fizer sentido ligá-la.
+
+O campo `cachedInputTokens` existe desde já, embora o prompt caching não esteja
+em uso: ~4.000 dos ~22.000 tokens de entrada por conversa são system prompt e
+definições de tools reenviados a cada turno, e Anthropic e DeepSeek descontam
+esse prefixo repetido. Quando o caching for ativado, a economia fica
+mensurável no mesmo painel.
+
+Todas as rotas exigem `isSuper` — consumo e custo revelam a margem da
+plataforma e o volume de cada cliente. Um teste estrutural falha se alguém
+adicionar rota sem o gate.
+
+51 testes novos, escritos antes do código (CLAUDE.md II.1). Módulo validado no
+navegador com dados reais.
+
+### Changed
+- `AgentAction.inputTokens`/`outputTokens` documentados no model como
+  **não-somáveis para cobrança** — permanecem como contexto de auditoria por
+  ferramenta. A fonte de verdade financeira passa a ser `TokenUsages`.
+
+
 ### Security — Auditoria da Seção XV: 5 vulnerabilidades corrigidas (2026-07-27)
 
 Primeira auditoria do código contra a nova Seção XV do `CLAUDE.md`. Até então o

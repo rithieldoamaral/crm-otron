@@ -5,6 +5,7 @@
  */
 
 import AgentAction from "../../models/AgentAction";
+import recordTokenUsage from "../TokenGovernance/recordTokenUsage";
 import { getSettingsByCompany, getGlobalSettings } from "./settingsCache";
 import { logger } from "../../utils/logger";
 import { AIProviderFactory } from "./providers/AIProviderFactory";
@@ -467,6 +468,17 @@ export async function handleClientAgent(
           { temperature: 0, maxTokens: 512 }
         );
 
+        // A sumarização também consome tokens e também é custo da empresa.
+        await recordTokenUsage({
+          companyId,
+          ticketId,
+          source: "summary",
+          provider: providerConfig.provider,
+          model: providerConfig.model,
+          usage: summaryResponse.usage,
+          finishReason: summaryResponse.finishReason
+        });
+
         if (summaryResponse.content && summaryResponse.content.trim().length > 0) {
           activeHistory = applyCompaction(activeHistory, summaryResponse.content.trim(), 10);
           // Persiste já compactado para que a próxima mensagem do cliente
@@ -540,6 +552,22 @@ export async function handleClientAgent(
         systemPrompt,
         { temperature }
       );
+
+      // MEDIÇÃO (2026-08-17): uma linha por CHAMADA ao LLM, gravada aqui —
+      // antes de qualquer ramificação por tool call. O registro antigo vivia
+      // dentro do laço de tools, então turno com N tools contava N vezes e
+      // turno sem tool não contava nenhuma. Ver directives/token_governance.md.
+      // Não usa await com try/catch porque o próprio serviço nunca lança.
+      await recordTokenUsage({
+        companyId,
+        ticketId,
+        source: "agent",
+        provider: providerConfig.provider,
+        model: providerConfig.model,
+        usage: response.usage,
+        finishReason: response.finishReason,
+        toolCallCount: response.toolCalls?.length ?? 0
+      });
 
       if (response.finishReason === "error") {
         logger.error(
