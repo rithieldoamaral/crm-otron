@@ -39,7 +39,7 @@ class BaileysChats extends Model<BaileysChats> {
 
   @ForeignKey(() => Whatsapp)
   @Column(DataType.INTEGER)
-  whatsappId: string;
+  whatsappId: number;
 }
 
 export default BaileysChats;

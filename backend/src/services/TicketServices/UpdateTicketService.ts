@@ -319,7 +319,7 @@ const UpdateTicketService = async ({
       status,
       queueId,
       userId,
-      whatsappId,
+      whatsappId: whatsappId !== undefined ? Number(whatsappId) : undefined,
       chatbot,
       queueOptionId,
       lastMessage: lastMessage !== null ? lastMessage : ticket.lastMessage
@@ -332,7 +332,7 @@ const UpdateTicketService = async ({
 
     if (status === "pending") {
       await ticketTraking.update({
-        whatsappId,
+        whatsappId: whatsappId !== undefined ? Number(whatsappId) : undefined,
         queuedAt: moment().toDate(),
         startedAt: null,
         userId: null
@@ -344,7 +344,7 @@ const UpdateTicketService = async ({
         startedAt: moment().toDate(),
         ratingAt: null,
         rated: false,
-        whatsappId,
+        whatsappId: whatsappId !== undefined ? Number(whatsappId) : undefined,
         userId: ticket.userId
       });
 

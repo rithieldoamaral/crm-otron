@@ -90,8 +90,10 @@ const typebotListener = async ({
 
         if (typebotExpires > 0 && ticket.updatedAt < dataLimite) {
             await ticket.update({
-                typebotSessionId: null,
-                isBot: true
+                typebotSessionId: null
+                // SEQUELIZE 6: `isBot` nunca existiu como coluna/atributo do
+                // model Ticket — era ignorado silenciosamente pelo Sequelize 5.
+                // Removido: comportamento em runtime inalterado (já era no-op).
             });
 
             await ticket.reload();
@@ -243,8 +245,9 @@ const typebotListener = async ({
 
                                 if (jsonGatilho.stopBot  && isNil(jsonGatilho.userId)  && isNil(jsonGatilho.queueId)) {
                                     await ticket.update({
-                                        useIntegration: false,
-                                        isBot: false
+                                        useIntegration: false
+                                        // SEQUELIZE 6: `isBot` nunca existiu como coluna do
+                                        // model Ticket — no-op silencioso removido.
                                     })
 
                                     return;
@@ -378,7 +381,8 @@ const typebotListener = async ({
         }
         if (body === typebotKeywordRestart) {
             await ticket.update({
-                isBot: true,
+                // SEQUELIZE 6: `isBot` nunca existiu como coluna do model
+                // Ticket — no-op silencioso removido.
                 typebotSessionId: null
 
             })

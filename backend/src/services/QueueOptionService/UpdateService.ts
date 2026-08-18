@@ -19,7 +19,13 @@ const UpdateService = async (
 
   const queueOption = await ShowService(queueOptionId);
 
-  await queueOption.update(queueOptionData);
+  // SEQUELIZE 6: só inclui queueId convertido quando realmente enviado,
+  // preservando o comportamento original (chave ausente = coluna intocada).
+  const updatePayload: Record<string, unknown> = { ...queueOptionData };
+  if (queueOptionData.queueId !== undefined) {
+    updatePayload.queueId = Number(queueOptionData.queueId);
+  }
+  await queueOption.update(updatePayload);
 
   return queueOption;
 };

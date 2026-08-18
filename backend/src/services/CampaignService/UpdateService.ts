@@ -48,7 +48,14 @@ const UpdateService = async (data: Data): Promise<Campaign> => {
     data.status = "PROGRAMADA";
   }
 
-  await record.update(data);
+  // SEQUELIZE 6: casts preservam os valores já enviados (comportamento
+  // inalterado; interface local sempre foi tipada id: number|string,
+  // scheduledAt: string, enquanto as colunas são number/Date).
+  await record.update({
+    ...data,
+    id: data.id as unknown as number,
+    scheduledAt: data.scheduledAt as unknown as Date
+  });
 
   await record.reload({
     include: [

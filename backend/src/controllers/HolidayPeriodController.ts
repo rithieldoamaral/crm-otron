@@ -91,8 +91,12 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
     const holidayPeriod = await HolidayPeriod.create({
       whatsappId: parseInt(whatsappId),
       companyId,
-      startDate: startDateStr,
-      endDate: endDateStr,
+      // SEQUELIZE 6: colunas DATEONLY aceitam string "YYYY-MM-DD" em runtime
+      // (é o comportamento correto/esperado); os tipos do sequelize-typescript
+      // apenas ficaram mais estritos (Date), então o cast preserva o valor
+      // exato sem introduzir conversão de timezone via `new Date(...)`.
+      startDate: startDateStr as unknown as Date,
+      endDate: endDateStr as unknown as Date,
       message,
       active: active !== undefined ? active : true,
       repeatIntervalHours: repeatIntervalHours || 24,

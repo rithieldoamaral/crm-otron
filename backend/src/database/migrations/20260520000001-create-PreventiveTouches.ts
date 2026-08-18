@@ -71,14 +71,11 @@ module.exports = {
     });
 
     // Idempotência: 1 toque preventivo por ciclo (definido por baselineHistoryId)
-    await queryInterface.addConstraint(
-      "PreventiveTouches",
-      ["contactId", "baselineHistoryId"],
-      {
-        type: "unique",
-        name: "preventive_touches_contact_baseline_unique"
-      }
-    );
+    await queryInterface.addConstraint("PreventiveTouches", {
+      fields: ["contactId", "baselineHistoryId"],
+      type: "unique",
+      name: "preventive_touches_contact_baseline_unique"
+    });
 
     // Índice para queries por empresa
     await queryInterface.addIndex("PreventiveTouches", ["companyId", "sentAt"]);

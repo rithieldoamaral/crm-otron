@@ -86,8 +86,6 @@ import {
 } from "./humanTypingDelay";
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-const request = require("request");
-
 const fs = require('fs')
 
 type Session = WASocket & {
@@ -2241,7 +2239,10 @@ const verifyQueue = async (
     if (ticketTraking.chatbotAt !== null) {
       dataLimite.setMinutes(ticketTraking.chatbotAt.getMinutes() + (Number(timeUseBotQueues)));
 
-      if (ticketTraking.chatbotAt !== null && Agora < dataLimite && timeUseBotQueues !== "0" && ticket.amountUsedBotQueues !== 0) {
+      // BUG PRÉ-EXISTENTE (exposto pelo Sequelize 6): comparava number com
+      // string "0" — sempre true, o guard nunca bloqueava. Corrigido para
+      // comparação numérica correta.
+      if (ticketTraking.chatbotAt !== null && Agora < dataLimite && Number(timeUseBotQueues) !== 0 && ticket.amountUsedBotQueues !== 0) {
         return;
       }
     }
@@ -3179,26 +3180,22 @@ export const handleMessageIntegration = async (
 
   if (queueIntegration.type === "n8n" || queueIntegration.type === "webhook") {
     if (queueIntegration?.urlN8N) {
-      const options = {
-        method: "POST",
-        url: queueIntegration?.urlN8N,
-        headers: {
-          "Content-Type": "application/json"
-        },
-        json: msg
-      };
-      try {
-        request(options, function (error, response) {
-          if (error) {
-            throw new Error(error);
-          }
-          else {
-            logger.debug({ body: response.body }, "dialogflow response");
-          }
+      // SEGURANÇA: `request` (pacote deprecado, com CVEs críticas em sua
+      // dependência `form-data`) substituído por `axios`, já usado no
+      // restante do arquivo. Erro agora é logado em vez de lançado dentro
+      // do callback (o `throw` original nunca era capturado pelo try/catch
+      // síncrono, já que rodava depois, de forma assíncrona).
+      const axios = require("axios");
+      axios
+        .post(queueIntegration.urlN8N, msg, {
+          headers: { "Content-Type": "application/json" }
+        })
+        .then(response => {
+          logger.debug({ body: response.data }, "dialogflow response");
+        })
+        .catch(error => {
+          logger.error({ err: error }, "Erro ao enviar webhook n8n/typebot");
         });
-      } catch (error) {
-        throw new Error(error);
-      }
     }
 
   } else if (queueIntegration.type === "typebot") {

@@ -54,11 +54,15 @@ const ListService = async ({
     group: ['Tag.id']
   });
 
-  const hasMore = count > offset + tags.length;
+  // SEQUELIZE 6: com `group`, findAndCountAll sempre devolveu um array
+  // (uma entrada por grupo), nunca um número — count.length é o total
+  // real de registros distintos.
+  const totalCount = Array.isArray(count) ? count.length : count;
+  const hasMore = totalCount > offset + tags.length;
 
   return {
     tags,
-    count,
+    count: totalCount,
     hasMore
   };
 };

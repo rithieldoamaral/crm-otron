@@ -250,7 +250,7 @@ const verifyGerencianetSignature = (
 
 export const index = async (req: Request, res: Response): Promise<Response> => {
   const { options: gerencianetOptions } = await getGerencianetSettings();
-  const gerencianet = Gerencianet(gerencianetOptions);
+  const gerencianet = new Gerencianet(gerencianetOptions);
   return res.json(gerencianet.getSubscriptions());
 };
 
@@ -488,7 +488,7 @@ export const createSubscription = async (
   }
 
   const { options: gerencianetOptions, pixKey } = await getGerencianetSettings();
-  const gerencianet = Gerencianet(gerencianetOptions);
+  const gerencianet = new Gerencianet(gerencianetOptions);
   const gerencianetWebhookUrl =
     process.env.GERENCIANET_WEBHOOK_URL || `${process.env.BACKEND_URL}/subscription/webhook`;
 
@@ -714,7 +714,7 @@ export const createWebhook = async (
     });
 
     const { options: gerencianetOptions } = await getGerencianetSettings();
-    const gerencianet = Gerencianet(gerencianetOptions);
+    const gerencianet = new Gerencianet(gerencianetOptions);
     const create = await gerencianet.pixConfigWebhook(params, body);
     
     logger.info({
@@ -993,7 +993,7 @@ export const webhook = async (
   }
   
   if (Array.isArray(req.body.pix)) {
-    const gerencianet = Gerencianet(gerencianetSettings.options);
+    const gerencianet = new Gerencianet(gerencianetSettings.options);
 
     logger.info({
       message: "Processando webhook Gerencianet com array de PIX.",

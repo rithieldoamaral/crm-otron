@@ -391,7 +391,9 @@ async function handleSendScheduledMessage(job) {
     }
 
     await scheduleRecord?.update({
-      sentAt: moment().format("YYYY-MM-DD HH:mm"),
+      // SEQUELIZE 6: tipo mais estrito (Date) na coluna; o cast preserva o
+      // mesmo valor/formato de string já enviado ao banco antes do upgrade.
+      sentAt: moment().format("YYYY-MM-DD HH:mm") as unknown as Date,
       status: "ENVIADA"
     });
 
@@ -787,7 +789,7 @@ async function handlePrepareContact(job) {
         }
       );
 
-      await record.update({ jobId: nextJob.id });
+      await record.update({ jobId: String(nextJob.id) });
     }
 
     await verifyAndFinalizeCampaign(campaign);
@@ -963,28 +965,41 @@ async function handleInvoiceCreate() {
         
           const plan = await Plan.findByPk(c.planId);
         
-          const sql = `SELECT * FROM "Invoices" WHERE "companyId" = ${c.id} AND "status" = 'open';`
-          const openInvoices = await sequelize.query(sql, { type: QueryTypes.SELECT }) as { id: number, dueDate: Date }[];
+          // SEGURANÇA: consultas parametrizadas — antes os valores (incluindo
+          // plan.name, texto armazenado e não sanitizado) eram concatenados
+          // direto na string SQL, permitindo SQL injection de 2ª ordem
+          // (CWE-89) caso um nome de plano contivesse aspas/payload.
+          const sql = `SELECT * FROM "Invoices" WHERE "companyId" = :companyId AND "status" = 'open';`;
+          const openInvoices = await sequelize.query(sql, {
+            replacements: { companyId: c.id },
+            type: QueryTypes.SELECT
+          }) as { id: number, dueDate: Date }[];
 
           const existingInvoice = openInvoices.find(invoice => moment(invoice.dueDate).format("DD/MM/yyyy") === vencimento);
-        
+
           if (existingInvoice) {
             // Due date already exists, no action needed
             //logger.info(`Fatura Existente`);
-        
+
           } else if (openInvoices.length > 0) {
-            const updateSql = `UPDATE "Invoices" SET "dueDate" = '${date}', "updatedAt" = '${timestamp}' WHERE "id" = ${openInvoices[0].id};`;
+            const updateSql = `UPDATE "Invoices" SET "dueDate" = :date, "updatedAt" = :timestamp WHERE "id" = :invoiceId;`;
 
-            await sequelize.query(updateSql, { type: QueryTypes.UPDATE });
-        
+            await sequelize.query(updateSql, {
+              replacements: { date, timestamp, invoiceId: openInvoices[0].id },
+              type: QueryTypes.UPDATE
+            });
+
             logger.info(`Fatura Atualizada ID: ${openInvoices[0].id}`);
-        
-          } else {
-          
-            const sql = `INSERT INTO "Invoices" (detail, status, value, "updatedAt", "createdAt", "dueDate", "companyId")
-            VALUES ('${plan.name}', 'open', '${plan.value}', '${timestamp}', '${timestamp}', '${date}', ${c.id});`
 
-            const invoiceInsert = await sequelize.query(sql, { type: QueryTypes.INSERT });
+          } else {
+
+            const sql = `INSERT INTO "Invoices" (detail, status, value, "updatedAt", "createdAt", "dueDate", "companyId")
+            VALUES (:detail, 'open', :value, :timestamp, :timestamp, :date, :companyId);`;
+
+            const invoiceInsert = await sequelize.query(sql, {
+              replacements: { detail: plan.name, value: plan.value, timestamp, date, companyId: c.id },
+              type: QueryTypes.INSERT
+            });
         
             logger.info(`Fatura Gerada para o cliente: ${c.id}`);
 

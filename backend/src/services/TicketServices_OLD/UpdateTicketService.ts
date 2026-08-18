@@ -253,7 +253,7 @@ const UpdateTicketService = async ({
       status,
       queueId,
       userId,
-      whatsappId,
+      whatsappId: whatsappId !== undefined ? Number(whatsappId) : undefined,
       chatbot,
       queueOptionId,
       lastMessage: lastMessage !== null ? lastMessage : ticket.lastMessage
@@ -263,7 +263,7 @@ const UpdateTicketService = async ({
 
     if (status !== undefined && ["pending"].indexOf(status) > -1) {
       ticketTraking.update({
-        whatsappId,
+        whatsappId: whatsappId !== undefined ? Number(whatsappId) : undefined,
         queuedAt: moment().toDate(),
         startedAt: null,
         userId: null,
@@ -275,8 +275,9 @@ const UpdateTicketService = async ({
         startedAt: moment().toDate(),
         ratingAt: null,
         rated: false,
-        whatsappId,
-        lastMessage: lastMessage !== null ? lastMessage : ticket.lastMessage,
+        whatsappId: whatsappId !== undefined ? Number(whatsappId) : undefined,
+        // SEQUELIZE 6: `lastMessage` nunca existiu como coluna do model
+        // TicketTraking — no-op silencioso removido.
         userId: ticket.userId
       });
     }

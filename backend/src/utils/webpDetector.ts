@@ -28,9 +28,11 @@ export const isAnimatedWebP = async (filePath: string): Promise<boolean> => {
 
     // Verificar se tem o chunk ANIM ou ANMF (indicam animação)
     try {
-      // Usar WebPInfo.from() e verificar summary.isAnimated (método compatível com tipos TypeScript)
-      const webpInfo = await WebPInfo.from(buffer);
-      return webpInfo.summary.isAnimated || false;
+      // SEGURANÇA: downgrade de webpinfo@2.0.0 → 1.0.4 (a 2.x introduziu
+      // `request`/`url-regex` como dependências, ambas com CVEs críticas;
+      // a 1.0.4 não as tem). A API mudou: não existe mais `.from()`,
+      // usamos `WebPInfo.isAnimated()` (nativo da 1.0.4, mais direto).
+      return await WebPInfo.isAnimated(buffer);
     } catch (err) {
       // Se webpinfo falhar, verificar manualmente por chunks ANIM/ANMF
       const bufferString = buffer.toString('binary');
@@ -65,9 +67,11 @@ export const isAnimatedWebPFromBuffer = async (buffer: Buffer): Promise<boolean>
 
     // Verificar se tem o chunk ANIM ou ANMF
     try {
-      // Usar WebPInfo.from() e verificar summary.isAnimated (método compatível com tipos TypeScript)
-      const webpInfo = await WebPInfo.from(buffer);
-      return webpInfo.summary.isAnimated || false;
+      // SEGURANÇA: downgrade de webpinfo@2.0.0 → 1.0.4 (a 2.x introduziu
+      // `request`/`url-regex` como dependências, ambas com CVEs críticas;
+      // a 1.0.4 não as tem). A API mudou: não existe mais `.from()`,
+      // usamos `WebPInfo.isAnimated()` (nativo da 1.0.4, mais direto).
+      return await WebPInfo.isAnimated(buffer);
     } catch (err) {
       // Se webpinfo falhar, verificar manualmente por chunks ANIM/ANMF
       const bufferString = buffer.toString('binary');

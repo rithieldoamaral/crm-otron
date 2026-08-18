@@ -48,6 +48,11 @@ const CreateService = async (data: Data): Promise<CreateResult> => {
       companies.map(company =>
         Announcement.create({
           ...data,
+          // SEQUELIZE 6: casts preservam os valores já enviados (colunas são
+          // boolean/number, interface local sempre foi tipada string —
+          // comportamento inalterado).
+          status: data.status as unknown as boolean,
+          priority: Number(data.priority),
           companyId: company.id
         })
       )
@@ -60,7 +65,11 @@ const CreateService = async (data: Data): Promise<CreateResult> => {
     };
   } else {
     // Criar anúncio apenas para a empresa atual
-    const record = await Announcement.create(data);
+    const record = await Announcement.create({
+      ...data,
+      status: data.status as unknown as boolean,
+      priority: Number(data.priority)
+    });
     return {
       announcement: record,
       companiesCount: 1

@@ -82,14 +82,11 @@ module.exports = {
     });
 
     // Cada novo contato só pode ser indicado uma única vez
-    await queryInterface.addConstraint(
-      "Referrals",
-      ["referredContactId"],
-      {
-        type: "unique",
-        name: "referrals_referred_contact_unique"
-      }
-    );
+    await queryInterface.addConstraint("Referrals", {
+      fields: ["referredContactId"],
+      type: "unique",
+      name: "referrals_referred_contact_unique"
+    });
 
     await queryInterface.addIndex("Referrals", ["companyId", "outcome"]);
     await queryInterface.addIndex("Referrals", ["referralCode"]);

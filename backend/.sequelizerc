@@ -2,7 +2,7 @@ const { resolve } = require("path");
 
 module.exports = {
   "config": resolve(__dirname, "dist", "config", "database.js"),
-  "modules-path": resolve(__dirname, "dist", "models"),
+  // SEQUELIZE-CLI 6: "modules-path" foi removido (opção obsoleta do CLI 5).
   "migrations-path": resolve(__dirname, "dist", "database", "migrations"),
   "seeders-path": resolve(__dirname, "dist", "database", "seeds")
 };

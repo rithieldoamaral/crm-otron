@@ -227,15 +227,22 @@ a[x-apple-data-detectors] {
   }
 };
 const filterEmail = async (email: string) => {
-  const sql = `SELECT * FROM "Users"  WHERE email ='${email}'`;
+  // SEGURANÇA: consulta parametrizada — antes o e-mail (input de usuário via
+  // URL, endpoint público sem autenticação) era concatenado direto na string
+  // SQL, permitindo SQL injection (CWE-89). Corrigido com `replacements`.
+  const sql = `SELECT * FROM "Users" WHERE email = :email`;
   const result = await database.query(sql, {
+    replacements: { email },
     type: sequelize.QueryTypes.SELECT
   });
   return { hasResult: result.length > 0, data: [result] };
 };
 const insertToken = async (email: string, tokenSenha: string) => {
-  const sqls = `UPDATE "Users" SET "resetPassword"= '${tokenSenha}' WHERE email ='${email}'`;
+  // SEGURANÇA: idem acima — `resetPassword` e `email` agora vão como
+  // replacements, nunca concatenados na string SQL.
+  const sqls = `UPDATE "Users" SET "resetPassword" = :tokenSenha WHERE email = :email`;
   const results = await database.query(sqls, {
+    replacements: { tokenSenha, email },
     type: sequelize.QueryTypes.UPDATE
   });
   return { hasResults: results.length > 0, datas: results };

@@ -24,7 +24,8 @@ const ResetPassword = async (
     return { status: 404, message: "Token não encontrado" };
   }
 
-  const hashedPassword = await hash(password, 8);
+  // SEGURANÇA: custo elevado de 8 para 12 (padrão recomendado atual).
+  const hashedPassword = await hash(password, 12);
 
   await user.update({
     passwordHash: hashedPassword,
