@@ -5,6 +5,30 @@ Formato: Data | Decisão | Motivo | Alternativas descartadas
 
 ---
 
+## 2026-08-19 — Incidente de produção: frontend com `REACT_APP_BACKEND_URL` vazio (build-time vs runtime env var)
+
+**Contexto:** durante um deploy manual (atualização do CRM para a última versão do GitHub, antes de `scripts/deploy.sh` existir), o rebuild dos containers foi rodado como `docker compose -f docker-compose.prod.yml up -d --build`, sem `--env-file .env.production`. O `docker compose` sem esse flag lê `.env` (que não existe neste projeto — as credenciais reais vivem em `.env.production`), então toda variável do `docker-compose.prod.yml` interpolada via `${VAR}` resolveu para string vazia.
+
+**Sintoma reportado pelo usuário:** "https://crm.otron.tech/ está dando vários erros". O frontend em si carregava (HTTP 200), mas a aplicação React entrava em loop de erro.
+
+**Causa raiz (3 níveis, não parou no sintoma):**
+1. Por que a página dá erro? → chamadas de API (logo, login, refresh de sessão) iam para `crm.otron.tech` em vez de `api.otron.tech`.
+2. Por que iam para o domínio errado? → o bundle JS compilado (`main.*.js`) não continha a string `api.otron.tech` em lugar nenhum — confirmado com `grep -c` no bundle servido.
+3. Por que a URL não estava no bundle? → `REACT_APP_BACKEND_URL` é um **build ARG** do Create React App (`frontend/Dockerfile`), não uma env var lida em runtime pelo Nginx que serve os arquivos estáticos depois. Ele é resolvido e congelado no JS **no momento do `docker build`**. Como o build rodou sem `--env-file`, `${BACKEND_URL}` (usado em `docker-compose.prod.yml:112` como valor do build arg) resolveu vazio, e o CRA compilou `${undefined}/public/logotipos/...` → caminho relativo ao próprio domínio do frontend.
+
+**Por que passou despercebido no momento do build:** o build em si não falha — `npm run build` completa normalmente com a env var vazia, só produz um artefato semanticamente errado. Não há erro de compilação, só comportamento errado em runtime. Nenhum teste do CI cobre isso (é uma variável de infraestrutura de deploy, não lógica de negócio).
+
+**Fix aplicado:**
+1. Rebuild do frontend com `docker compose -f docker-compose.prod.yml --env-file .env.production build frontend` (build isolado, sem afetar backend/postgres/redis já saudáveis).
+2. `docker compose ... up -d frontend` para recriar o container com a imagem nova.
+3. Validação real (não só assumida): bundle novo (`main.4302ef6b.js`, hash diferente do anterior `main.afa9ec0c.js`) contém `api.otron.tech`; `curl https://api.otron.tech/public/logotipos/interno.png` → 200; CORS liberando `https://crm.otron.tech` como origin; logs do nginx sem mais o padrão de retry em loop.
+
+**Prevenção estrutural (não é só "lembrar da próxima vez"):** `scripts/deploy.sh` (commit `d4c5365`) agora é o único caminho suportado de deploy e SEMPRE roda `up -d --build` com `--env-file .env.production` explícito — a classe inteira de bug (esquecer o env-file, seja pro backend em runtime ou pro frontend em build-time) fica estruturalmente impossível pelo fluxo normal. Documentado também no `CLAUDE.md` Seção VI.6 como regra geral (build-time vs runtime), não só como nota deste incidente.
+
+**Lição (anti-repetição):** em builds multi-stage com CRA/Vite, "a env var está no `.env.production`" não é suficiente — ela só chega ao bundle final se (a) o comando de build recebeu o `--env-file`/`--build-arg` explicitamente E (b) o `Dockerfile` declara `ARG` + `ENV` para repassar ao processo de build. Runtime env var (lida por `process.env` num backend Node) e build-time env var (congelada no bundle por um bundler) são duas categorias diferentes de bug — um `docker compose up -d` sem rebuild nunca corrige a segunda, mesmo com o env-file certo depois.
+
+---
+
 ## 2026-07-26 — Endurecimento anti-banimento enquanto operamos via Baileys
 
 **Contexto:** o usuário pretende obter a licença de integrador oficial da Meta no futuro (processo burocrático: página oficial, comprovação de empresa), mas vai operar com a Baileys (API não-oficial) até lá. Pediu três frentes de mitigação e, no ponto 3, pediu explicitamente para ser consultado antes da execução.

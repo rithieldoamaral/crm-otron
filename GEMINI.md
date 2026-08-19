@@ -503,6 +503,17 @@ Monitoramento (SLA: disponibilidade > 99.5%)
 
 **Um ponto de honestidade sobre o pre-commit:** a Seção VII.1 propõe `.pre-commit-config.yaml`, que exige Python (`pip install pre-commit`). Este projeto é 100% Node/TypeScript e a máquina de desenvolvimento não tem Python — o arquivo existiria sem nunca rodar, que é exatamente a falha que esta seção proíbe. Por isso o hook é bash puro em `.githooks/`, sem dependência nenhuma. **Ao portar VII.1 para um projeto novo, escolha a ferramenta que roda naquele ambiente, não a que está escrita aqui.**
 
+### 6.6 Build-time vs Runtime: variável de ambiente não é uma categoria única (INVIOLÁVEL)
+
+**"Está no `.env.production`" não significa "o app vai usar o valor certo".** Existem duas categorias de variável de ambiente, com falhas completamente diferentes:
+
+* **Runtime** (backend Node lê `process.env.X` quando o processo sobe): se faltar, o processo falha alto (crash-loop, como o `JWT_SECRET` ausente) — visível, ruidoso, fácil de diagnosticar.
+* **Build-time** (`ARG` do Dockerfile / `REACT_APP_*` do CRA / `VITE_*` do Vite): o valor é lido **uma vez, no momento do `docker build`**, e fica congelado dentro do artefato compilado (o bundle JS). Depois disso, **nenhuma env var de runtime tem efeito** — o container pode ter `BACKEND_URL` perfeito no `docker inspect` e o frontend ainda assim vai chamar o domínio errado, porque o valor errado já está dentro do `.js` servido.
+* **A falha de build-time é silenciosa.** `npm run build` completa com sucesso mesmo com a variável vazia — não há erro de compilação, só um artefato semanticamente errado que passa despercebido até alguém testar o fluxo real no navegador.
+* **Regra prática:** todo comando `docker compose ... build` (ou `up -d --build`) em produção precisa do `--env-file` explícito, **mesmo que o serviço em questão pareça não usar secrets** — se algum `ARG` no `Dockerfile` referencia `${VAR}` do compose, ele precisa do env-file no momento do build, não só no momento do `up`. Rodar `up -d` depois com o env-file certo NÃO conserta um build-time bug já compilado — é preciso rebuildar.
+* **Como verificar que corrigiu de verdade:** não confie em "rodei de novo, deve ter pego" — `grep` a string esperada dentro do bundle final (`docker exec <container> grep -c "dominio-esperado" /caminho/para/main.*.js`) antes de considerar resolvido.
+* **Precedente no projeto:** 2026-08-19, deploy manual sem `--env-file` fez o build do frontend congelar `REACT_APP_BACKEND_URL` vazio no bundle — todas as chamadas de API do CRM em produção foram para o próprio domínio do frontend em vez do backend, com `crm.otron.tech` respondendo mas a aplicação em loop de erro. Ver `decisions_log.md` (2026-08-19) para a investigação causa-raiz completa. Prevenção estrutural: `scripts/deploy.sh` (commit `d4c5365`) sempre roda `--build` com `--env-file .env.production` explícito.
+
 \---
 
 ## VII. Enforcement \& Verificação (NOVO)
@@ -1247,6 +1258,7 @@ Resultado: Código Maduro + Escalável + Auditável
 |CI/CD|VI|
 |Lockfile \& determinismo de deps|VI.4|
 |Documento vs realidade|VI.5|
+|**Build-time vs runtime (env vars)**|**VI.6**|
 |Pre-commit|VII.1|
 |Code Style|VIII|
 |Rollback|IX|
@@ -1266,13 +1278,14 @@ Resultado: Código Maduro + Escalável + Auditável
 
 \---
 
-**Versão:** 2.1 (A+++)  
-**Data:** 2026-07-27  
+**Versão:** 2.2 (A+++)  
+**Data:** 2026-08-19  
 **Status:** Pronto para produção  
 **Próxima Review:** 2026-10-27 (trim)
 
 **Changelog do documento:**
 
+* **2.2 (2026-08-19)** — Adicionada VI.6 (build-time vs runtime env vars) a partir do incidente de produção de 2026-08-19 (frontend com `REACT_APP_BACKEND_URL` vazio por build sem `--env-file`). Ver `decisions_log.md` na mesma data para a investigação completa.
 * **2.1 (2026-07-27)** — Adicionada Seção XV (Security Guidelines): ocultação ≠ proteção, autorização no backend, IDOR/multi-tenant, XSS e prompt injection, rate limiting como controle de segurança, dados em repouso, exposição de infra e auditoria do build. Adicionadas VI.4 (lockfile) e VI.5 (documento vs realidade) a partir dos incidentes `bf2c16a` e `aca9ffa`.
 * **2.0 (2025-04-06)** — Versão base A+++.
 
