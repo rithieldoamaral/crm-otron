@@ -131,7 +131,11 @@ jobs:
 
       - name: Install (npm ci — falha se o lockfile divergir)
         working-directory: frontend
-        run: npm ci
+        # --legacy-peer-deps porque o Dockerfile do frontend usa exatamente
+        # isso (linha 17). O CI precisa reproduzir a produção: sem a flag o
+        # npm 7+ recusa a árvore por conflito de peer dependency, e o job
+        # falharia por divergência de ambiente, não por defeito no código.
+        run: npm ci --legacy-peer-deps
 
       - name: Build de produção
         working-directory: frontend
@@ -294,8 +298,12 @@ jobs:
         uses: trufflesecurity/trufflehog@main
         with:
           path: ./
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
+          # SEM base/head de propósito. Num push para main os dois apontam
+          # para o mesmo commit, o TruffleHog não tem intervalo para comparar
+          # e o passo falha. Sem o par ele varre o repositório inteiro: mais
+          # lento, porém é o comportamento correto para um portão de
+          # segurança — secret antigo que nunca foi detectado continua sendo
+          # secret vazado, e um scan incremental jamais o encontraria.
           extra_args: --results=verified,unknown
 
       - name: Setup Node ${{ env.NODE_VERSION }}
