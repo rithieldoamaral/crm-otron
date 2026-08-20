@@ -50,10 +50,10 @@ const useStyles = makeStyles((theme) => ({
     backgroundColor: theme.palette.fancyBackground,
     '& .MuiButton-outlinedPrimary': {
       color: theme.mode === 'light' ? '#FFF' : '#FFF',
-      backgroundColor: theme.mode === 'light' ? '#4682B4' : '#1c1c1c',
+      backgroundColor: theme.mode === 'light' ? '#123739' : '#1c1c1c',
     },
     '& .MuiTab-textColorPrimary.Mui-selected': {
-      color: theme.mode === 'light' ? '#4682B4' : '#FFF',
+      color: theme.mode === 'light' ? '#123739' : '#FFF',
     }
   },
   avatar: {
@@ -70,16 +70,34 @@ const useStyles = makeStyles((theme) => ({
     display: 'flex',
     alignItems: 'center',
     marginLeft: theme.spacing(1),
-    gap: theme.spacing(1.5),
+    // Respiro maior entre o logo da plataforma e o nome do cliente: sem ele os
+    // dois se leem como uma marca só. O separador vertical reforça que são
+    // duas identidades distintas (a nossa e a de quem contratou).
+    gap: theme.spacing(2.5),
+  },
+  brandingDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.28)',
+    [theme.breakpoints.down('sm')]: {
+      display: 'none',
+    },
   },
   companyName: {
     color: 'white',
-    fontSize: '1rem',
-    fontWeight: 500,
+    // O nome do cliente é a informação de maior hierarquia da barra: ele
+    // responde "de quem é este CRM". Peso 700 e corpo maior que o padrão
+    // (1rem) para vencer o logo em destaque, conforme o manual da marca
+    // (TÍTULO / 800).
+    fontSize: '1.25rem',
+    fontWeight: 700,
+    letterSpacing: '-0.01em',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
-    maxWidth: '200px',
+    // Acompanha o corpo maior da fonte: com 200px o nome passava a truncar
+    // cedo demais depois do aumento.
+    maxWidth: '260px',
     [theme.breakpoints.down('sm')]: {
       display: 'none',
     },
@@ -493,9 +511,12 @@ const LoggedInLayout = ({ children }) => {
                 onClick={() => window.location.href = '/'}
               />
               {companyName && (
-                <Typography className={classes.companyName}>
-                  {companyName}
-                </Typography>
+                <>
+                  <div className={classes.brandingDivider} />
+                  <Typography className={classes.companyName} title={companyName}>
+                    {companyName}
+                  </Typography>
+                </>
               )}
             </div>
           )}

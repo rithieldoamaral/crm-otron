@@ -723,7 +723,7 @@ const messages = {
           campaignsConfig: "Config. Campanhas",
           annoucements: "Informativos",
           backups: "Backups",
-          tasks: "Tarefas",
+          tasks: "Anotações",
           chats: "Chat Interno",
           financeiro: "Financeiro",
           files: "Arquivos",

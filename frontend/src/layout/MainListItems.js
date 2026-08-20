@@ -62,7 +62,8 @@ import {
   FiServer,
   FiCheckCircle,
   FiCircle,
-  FiActivity
+  FiActivity,
+  FiShield
 } from "react-icons/fi";
 
 const useStyles = makeStyles((theme) => ({
@@ -146,6 +147,38 @@ const useStyles = makeStyles((theme) => ({
     alignItems: 'center',
     justifyContent: 'center'
   },
+  // Badge "SA": marca visualmente o que só o superadmin enxerga.
+  // Usa a cor de ativação do manual da marca (#BDF23C) porque a função dela
+  // é exatamente essa — sinalizar o que exige atenção. Some junto com o texto
+  // quando o menu está recolhido; nesse estado a informação vai no tooltip.
+  saBadge: {
+    display: collapsed => collapsed ? 'none' : 'inline-flex',
+    alignItems: 'center',
+    gap: 3,
+    marginLeft: 6,
+    padding: '1px 5px',
+    borderRadius: 4,
+    backgroundColor: theme.palette.ativacao.main,
+    color: theme.palette.ativacao.contrastText,
+    fontSize: '0.6rem',
+    fontWeight: 700,
+    letterSpacing: '0.04em',
+    lineHeight: 1.4,
+    verticalAlign: 'middle',
+    flexShrink: 0,
+  },
+  listItemTextRow: {
+    display: 'flex',
+    alignItems: 'center',
+    minWidth: 0,
+  },
+  // O label trunca sozinho; sem isto o badge seria empurrado para fora do
+  // menu em nomes longos em vez de o texto encolher.
+  listItemTextLabel: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
   activeItem: {
     //backgroundColor: theme.palette.action.selected + '!important',
     borderLeft: `3px solid ${theme.palette.primary.main}`,
@@ -202,8 +235,16 @@ const CustomTooltip = withStyles((theme) => ({
   },
 }))(Tooltip);
 
+/**
+ * Item de menu com link.
+ *
+ * @param superOnly - Marca a rota como exclusiva do superadmin, exibindo o
+ *   badge "SA". É SINALIZAÇÃO VISUAL apenas: quem de fato bloqueia o acesso
+ *   é o middleware isSuper no backend (CLAUDE.md XV.1 — esconder no frontend
+ *   não é proteger). Passar ou omitir esta prop não altera permissão nenhuma.
+ */
 function ListItemLink(props) {
-  const { icon, primary, to, className, isActive, collapsed } = props;
+  const { icon, primary, to, className, isActive, collapsed, superOnly } = props;
   const classes = useStyles(collapsed);
 
   const renderLink = React.useMemo(
@@ -226,8 +267,18 @@ function ListItemLink(props) {
           {icon}
         </div>
       </ListItemIcon>
-      <ListItemText 
-        primary={primary} 
+      <ListItemText
+        primary={
+          <span className={classes.listItemTextRow}>
+            <span className={classes.listItemTextLabel}>{primary}</span>
+            {superOnly && (
+              <span className={classes.saBadge}>
+                <FiShield size={9} />
+                SA
+              </span>
+            )}
+          </span>
+        }
         className={classes.listItemText}
       />
     </ListItem>
@@ -237,7 +288,7 @@ function ListItemLink(props) {
     return (
       <li>
         <CustomTooltip 
-          title={primary} 
+          title={superOnly ? `${primary} — somente superadmin` : primary}
           placement="right" 
           TransitionComponent={Zoom}
           arrow
@@ -705,6 +756,7 @@ const MainListItems = (props) => {
                       icon={<FiUsers size={18} />}
                       isActive={isActivePath('/contact-lists')}
                       collapsed={collapsed}
+                      superOnly
                     />
                     <ListItemLink
                       to="/campaigns-config"
@@ -712,6 +764,7 @@ const MainListItems = (props) => {
                       icon={<FiSettings size={18} />}
                       isActive={isActivePath('/campaigns-config')}
                       collapsed={collapsed}
+                      superOnly
                     />
                     <ListItemLink
                       to="/campaigns"
@@ -719,6 +772,7 @@ const MainListItems = (props) => {
                       icon={<FiMail size={18} />}
                       isActive={isActivePath('/campaigns')}
                       collapsed={collapsed}
+                      superOnly
                     />
                   </List>
                 </Collapse>
@@ -757,6 +811,7 @@ const MainListItems = (props) => {
                     icon={<FiCode size={18} />}
                     isActive={isActivePath('/messages-api')}
                     collapsed={collapsed}
+                    superOnly
                   />
                 )}
                 <ListItemLink
@@ -765,6 +820,7 @@ const MainListItems = (props) => {
                   icon={<FiZap size={18} />}
                   isActive={isActivePath('/quick-messages')}
                   collapsed={collapsed}
+                  superOnly
                 />
               </List>
             </Collapse>
@@ -784,6 +840,7 @@ const MainListItems = (props) => {
                   icon={<FiBell size={18} />}
                   isActive={isActivePath('/announcements')}
                   collapsed={collapsed}
+                  superOnly
                 />
                 <ListItemLink
                   to="/logs"
@@ -791,6 +848,7 @@ const MainListItems = (props) => {
                   icon={<FiActivity size={18} />}
                   isActive={isActivePath('/logs')}
                   collapsed={collapsed}
+                  superOnly
                 />
               </>
             )}

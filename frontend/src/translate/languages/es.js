@@ -702,7 +702,7 @@ const messages = {
           campaignsConfig: "Config. Campañas",
           annoucements: "Anuncios",
           backups: "Respaldos",
-          tasks: "Tareas",
+          tasks: "Notas",
           chats: "Chat Interno",
           financeiro: "Finanzas",
           files: "Archivos",

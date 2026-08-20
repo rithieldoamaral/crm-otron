@@ -25,6 +25,14 @@ import { has, isObject } from "lodash";
 
 import { AuthContext } from "../../context/Auth/AuthContext";
 import withWidth, { isWidthUp } from "@material-ui/core/withWidth";
+import Typography from "@material-ui/core/Typography";
+import AddIcon from "@material-ui/icons/Add";
+import InfoOutlinedIcon from "@material-ui/icons/InfoOutlined";
+
+import MainContainer from "../../components/MainContainer";
+import MainHeader from "../../components/MainHeader";
+import MainHeaderButtonsWrapper from "../../components/MainHeaderButtonsWrapper";
+import Title from "../../components/Title";
 
 const useStyles = makeStyles((theme) => ({
   mainContainer: {
@@ -50,9 +58,24 @@ const useStyles = makeStyles((theme) => ({
     height: "92%",
     width: "100%",
   },
-  btnContainer: {
-    textAlign: "right",
-    padding: 10,
+  // O botao "Nova" vivia solto num canto do grid, sem ancora visual. Agora
+  // ele mora no cabecalho da pagina, junto do titulo, que e onde o usuario
+  // procura a acao primaria em todas as outras telas do sistema.
+  aviso: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: "12px 16px",
+    marginBottom: 16,
+    borderRadius: 6,
+    borderLeft: `3px solid ${theme.palette.primary.main}`,
+    backgroundColor: theme.mode === "light" ? "#F4F2EC" : "rgba(255,255,255,0.06)",
+  },
+  avisoIcone: {
+    fontSize: 18,
+    marginTop: 1,
+    color: theme.palette.primary.main,
+    flexShrink: 0,
   },
 }));
 
@@ -334,20 +357,6 @@ function Chat(props) {
     return (
       <Grid className={classes.gridContainer} container>
         <Grid className={classes.gridItem} md={3} item>
-          
-            <div className={classes.btnContainer}>
-              <Button
-                onClick={() => {
-                  setDialogType("new");
-                  setShowDialog(true);
-                }}
-                color="primary"
-                variant="contained"
-              >
-                Nova
-              </Button>
-            </div>
-          
           <ChatList
             chats={chats}
             pageInfo={chatsPageInfo}
@@ -394,15 +403,6 @@ function Chat(props) {
         </Grid>
         {tab === 0 && (
           <Grid className={classes.gridItemTab} md={12} item>
-            <div className={classes.btnContainer}>
-              <Button
-                onClick={() => setShowDialog(true)}
-                color="primary"
-                variant="contained"
-              >
-                Novo
-              </Button>
-            </div>
             <ChatList
               chats={chats}
               pageInfo={chatsPageInfo}
@@ -445,9 +445,38 @@ function Chat(props) {
         }}
         handleClose={() => setShowDialog(false)}
       />
-      <Paper className={classes.mainContainer}>
-        {isWidthUp("md", props.width) ? renderGrid() : renderTab()}
-      </Paper>
+      <MainContainer>
+        <MainHeader>
+          <Title>Chat Interno</Title>
+          <MainHeaderButtonsWrapper>
+            <Button
+              onClick={() => {
+                setDialogType("new");
+                setShowDialog(true);
+              }}
+              color="primary"
+              variant="contained"
+              startIcon={<AddIcon />}
+            >
+              Nova conversa
+            </Button>
+          </MainHeaderButtonsWrapper>
+        </MainHeader>
+
+        <Paper className={classes.aviso} elevation={0}>
+          <InfoOutlinedIcon className={classes.avisoIcone} />
+          <Typography variant="body2" component="div">
+            Conversas entre a própria equipe.{" "}
+            <strong>Nada trocado aqui é lido pelos agentes de IA</strong> — não
+            influencia respostas, contexto nem base de conhecimento, e o cliente
+            não tem acesso.
+          </Typography>
+        </Paper>
+
+        <Paper className={classes.mainContainer}>
+          {isWidthUp("md", props.width) ? renderGrid() : renderTab()}
+        </Paper>
+      </MainContainer>
     </>
   );
 }
