@@ -9,6 +9,7 @@ import Setting from "../../../models/Setting";
 import Contact from "../../../models/Contact";
 import FindOrCreateTicketService from "../../TicketServices/FindOrCreateTicketService";
 import SendWhatsAppMessage from "../../WbotServices/SendWhatsAppMessage";
+import { canonicalizePhone } from "../../SecretaryService/phoneMatch";
 
 interface NotificarProprietarioArgs {
   mensagem: string;
@@ -41,11 +42,23 @@ export async function notificarProprietario(
       where: { companyId, key: "agentOwnerNumber" }
     });
 
-    if (!ownerSetting?.value) {
+    // Fallback para os admins da Secretária: os dois campos apontam para a
+    // mesma pessoa na prática, e obrigar o cadastro em dois lugares só produz
+    // a situação em que um está preenchido e o outro não — aí o alerta urgente
+    // simplesmente não sai.
+    let destino = ownerSetting?.value?.trim() ?? "";
+    if (!destino) {
+      const adminSetting = await Setting.findOne({
+        where: { companyId, key: "secretaryAdminNumbers" }
+      });
+      destino = (adminSetting?.value ?? "").split(",")[0].trim();
+    }
+
+    if (!destino) {
       return {
         sucesso: false,
         mensagem: "Número do proprietário não configurado.",
-        erro: "Configure o agentOwnerNumber nas configurações da empresa."
+        erro: "Configure o WhatsApp do proprietário (ou ao menos um número de admin da Secretária) nas configurações da empresa."
       };
     }
 
@@ -61,7 +74,12 @@ export async function notificarProprietario(
       };
     }
 
-    const numero = ownerSetting.value.replace(/\D/g, "");
+    // canonicalizePhone (e não replace(/\D/g, "")) porque o formato aceito nas
+    // telas diverge: a da Secretária ensina sem DDI ("48988368758") e este
+    // campo esperava com DDI. Sem canonicalizar, o número da outra convenção
+    // virava JID inválido — a mensagem não chegava, um Contact lixo era criado
+    // e a tool ainda respondia "sucesso" ao agente. Falha 100% silenciosa.
+    const numero = canonicalizePhone(destino);
     const [contatoProprietario] = await Contact.findOrCreate({
       where: { number: numero, companyId },
       defaults: { name: "Proprietário", number: numero, companyId } as any

@@ -17,6 +17,7 @@ import { SocketContext } from "../context/Socket/SocketContext";
 
 // Utilitários
 import { i18n } from "../translate/i18n";
+import SuperAdminBadge from "../components/SuperAdminBadge";
 import { Can } from "../components/Can";
 import { isArray } from "lodash";
 import api from "../services/api";
@@ -62,8 +63,7 @@ import {
   FiServer,
   FiCheckCircle,
   FiCircle,
-  FiActivity,
-  FiShield
+  FiActivity
 } from "react-icons/fi";
 
 const useStyles = makeStyles((theme) => ({
@@ -146,26 +146,6 @@ const useStyles = makeStyles((theme) => ({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center'
-  },
-  // Badge "SA": marca visualmente o que só o superadmin enxerga.
-  // Usa a cor de ativação do manual da marca (#BDF23C) porque a função dela
-  // é exatamente essa — sinalizar o que exige atenção. Some junto com o texto
-  // quando o menu está recolhido; nesse estado a informação vai no tooltip.
-  saBadge: {
-    display: collapsed => collapsed ? 'none' : 'inline-flex',
-    alignItems: 'center',
-    gap: 3,
-    marginLeft: 6,
-    padding: '1px 5px',
-    borderRadius: 4,
-    backgroundColor: theme.palette.ativacao.main,
-    color: theme.palette.ativacao.contrastText,
-    fontSize: '0.6rem',
-    fontWeight: 700,
-    letterSpacing: '0.04em',
-    lineHeight: 1.4,
-    verticalAlign: 'middle',
-    flexShrink: 0,
   },
   listItemTextRow: {
     display: 'flex',
@@ -271,12 +251,7 @@ function ListItemLink(props) {
         primary={
           <span className={classes.listItemTextRow}>
             <span className={classes.listItemTextLabel}>{primary}</span>
-            {superOnly && (
-              <span className={classes.saBadge}>
-                <FiShield size={9} />
-                SA
-              </span>
-            )}
+            {superOnly && <SuperAdminBadge />}
           </span>
         }
         className={classes.listItemText}

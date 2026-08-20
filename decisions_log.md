@@ -1851,3 +1851,82 @@ razão, rota sem token devolvendo 401 e crédito negativo devolvendo 400.
 6. **Sem cobertura de teste no frontend** — segue o débito geral do projeto.
 
 ---
+
+## 2026-08-20 — Identidade visual da marca e varredura de CX
+
+### Contexto
+
+Pedido de melhorias visuais e de experiência, com o manual da marca Otron v1.0
+(agosto/2026) como referência de cor e tipografia.
+
+### Decisões de cor
+
+**Paleta institucional substitui a "Blue Steel".** O sistema usava `#4682B4`,
+que não existe no manual. Trocado por `#123739` (verde-petróleo). Os tons de
+gradiente e hover (`#0B2223` e `#1D5A5D`) NÃO estão no manual: foram derivados
+do verde-petróleo mantendo matiz (183°) e saturação (52%), variando só a
+luminosidade. Inventar uma cor fora da identidade seria pior que derivar da que
+já existe.
+
+**O lima `#BDF23C` entrou como token `palette.ativacao`.** O manual define essa
+cor como "ativação, dado". Usada no selo "SA" e disponível para item de menu
+ativo e indicadores.
+
+**`public/index.html` foi incluído na troca.** O spinner de carregamento é a
+primeira coisa que o cliente vê, antes de qualquer React montar — ficar com o
+azul antigo entregaria a marca errada no momento de maior atenção.
+
+### Decisões de CX
+
+**Os dois "Financeiro" foram renomeados.** `/finance` ("Financeiro") e
+`/financeiro` ("Mensalidade do CRM") são coisas opostas — o dinheiro do cliente
+e o dinheiro que ele deve à plataforma — com rótulos quase idênticos. Agora
+"Financeiro do Negócio" e "Minha Assinatura".
+
+**A aba "Cadastrar Empresa" foi REMOVIDA.** Ela renderizava
+`pages/Companies/index.js`, que é literalmente a página pública de cadastro
+(`export default SignUp`): ao salvar executava `history.push("/login")`,
+expulsando o superadmin para a tela de login. E era redundante — o
+`CompaniesManager` da aba "Empresas" já cria empresas (`if id → update, else →
+save`).
+
+**"Personalidade" e "Conhecimento" viraram uma aba só ("Atendimento").** Eram 8
+campos do mesmo agente divididos em duas abas, sem nada indicando a relação. A
+separação virou dois blocos visuais dentro da mesma aba: mantém a leitura sem
+esconder metade da configuração atrás de um clique.
+
+**O WhatsApp do proprietário saiu de "Conhecimento".** Ele não é conhecimento,
+é notificação. Foi para a aba da Secretária, junto dos números de admin.
+
+### Bug corrigido: telefone do proprietário (silencioso)
+
+`notificarProprietario` montava o destino com `replace(/\D/g, "")`, sem
+canonicalizar. Como a tela da Secretária ensina o formato SEM DDI
+("48988368758") e este campo esperava COM DDI, quem seguisse a convenção da
+outra tela gerava um JID inválido: a mensagem não chegava, um `Contact` lixo era
+criado, e a tool ainda respondia "sucesso" ao agente — falha 100% silenciosa.
+
+Corrigido com `canonicalizePhone` (que já existia em `SecretaryService/
+phoneMatch.ts` e trata DDI, 9º dígito e máscara) mais fallback para o primeiro
+número de admin quando o campo está vazio. 6 testes novos, escritos antes do
+fix; 4 falhavam no estado anterior.
+
+### Tech debt registrado
+
+1. **Anotações persistem em `localStorage`, não no banco.** São por navegador,
+   não por usuário: somem ao limpar dados do site e não acompanham quem troca de
+   máquina. Decisão consciente de não migrar agora — seria uma feature de
+   backend completa (tabela, model, migration, rotas com isolamento por
+   `companyId`, testes) e atrasaria o restante. Mitigado com aviso explícito na
+   tela, para não criar expectativa falsa. **Migrar quando houver demanda real
+   de compartilhamento entre a equipe.**
+
+2. **`pages/Companies/index.js` ficou órfão.** Com a remoção da aba, ninguém
+   mais o importa (a rota já estava comentada em `routes/index.js:24`). Não foi
+   deletado por mínima mudança (II.6) — remover é um commit separado.
+
+3. **Telas autenticadas não verificadas visualmente.** Sem sessão de teste
+   local, só a tela de login foi inspecionada no navegador. Conferir Anotações,
+   Chat Interno, menu e Configurações após o deploy.
+
+---

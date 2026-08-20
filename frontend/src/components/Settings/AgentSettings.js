@@ -138,6 +138,10 @@ const useStyles = makeStyles((theme) => ({
   field: { width: "100%", marginBottom: theme.spacing(1) },
   saveBtn: { marginTop: theme.spacing(2) },
   hint: { fontSize: "0.75rem", color: theme.palette.text.secondary, marginTop: 4 },
+  // Titulos de bloco dentro da aba unificada: mantêm a separação de leitura
+  // que as duas abas davam, sem esconder metade dos campos atrás de um clique.
+  blocoTitulo: { fontSize: "0.95rem", fontWeight: 700, margin: 0, color: theme.palette.primary.main },
+  blocoDescricao: { fontSize: "0.8rem", color: theme.palette.text.secondary, margin: "2px 0 16px" },
   modelRow: { display: "flex", alignItems: "center", gap: theme.spacing(1) },
   refreshBtn: { marginTop: 4 },
   sandboxChat: {
@@ -349,8 +353,7 @@ const AgentSettings = ({ settings }) => {
         className={classes.tabsRoot}
       >
         {isSuper && <Tab label="Provedor" value={0} className={classes.tab} />}
-        <Tab label="Personalidade" value={1} className={classes.tab} />
-        <Tab label="Conhecimento" value={2} className={classes.tab} />
+        <Tab label="Atendimento" value={1} className={classes.tab} />
         <Tab label="Secretária IA" value={4} className={classes.tab} />
         <Tab label="Sandbox" value={5} className={classes.tab} />
       </Tabs>
@@ -418,9 +421,19 @@ const AgentSettings = ({ settings }) => {
         </Paper>
       </TabPanel>
 
-      {/* Tab 1 — Personalidade */}
+      {/* Tab 1 — Atendimento (Personalidade + Conhecimento unificados)
+
+          Antes eram duas abas separadas para 8 campos que descrevem o MESMO
+          agente. Quem configura precisava alternar entre elas para ver o
+          conjunto, e nada indicava que estavam relacionadas. Agora é uma aba
+          com dois blocos visuais: a divisão continua ajudando a leitura, sem
+          esconder metade da configuração atrás de um clique. */}
       <TabPanel value={activeTab} index={1}>
         <Paper className={classes.paper} elevation={1}>
+          <h3 className={classes.blocoTitulo}>Identidade e comportamento</h3>
+          <p className={classes.blocoDescricao}>
+            Quem é o agente e como ele fala com o cliente.
+          </p>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
               <TextField
@@ -475,11 +488,12 @@ const AgentSettings = ({ settings }) => {
             </Grid>
           </Grid>
         </Paper>
-      </TabPanel>
 
-      {/* Tab 2 — Conhecimento */}
-      <TabPanel value={activeTab} index={2}>
         <Paper className={classes.paper} elevation={1}>
+          <h3 className={classes.blocoTitulo}>Conhecimento do negócio</h3>
+          <p className={classes.blocoDescricao}>
+            O que o agente sabe responder e o que ele não pode fazer.
+          </p>
           <Grid container spacing={2}>
             <Grid item xs={12}>
               <TextField
@@ -507,7 +521,7 @@ const AgentSettings = ({ settings }) => {
                 placeholder="P: Aceitam cartão? R: Sim, todos os cartões e Pix.&#10;P: Precisa agendar? R: Sim, pelo WhatsApp."
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12}>
               <TextField
                 className={classes.field}
                 label="Restrições"
@@ -519,18 +533,6 @@ const AgentSettings = ({ settings }) => {
                 onChange={handleChange("agentRestrictions")}
                 placeholder="Nunca mencionar concorrentes. Não dar desconto sem aprovação..."
               />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                className={classes.field}
-                label="WhatsApp do Proprietário (notificações)"
-                variant="outlined"
-                size="small"
-                value={values.agentOwnerNumber}
-                onChange={handleChange("agentOwnerNumber")}
-                placeholder="5511999999999 (só números, com DDI)"
-              />
-              <p className={classes.hint}>O agente vai enviar alertas urgentes para este número.</p>
             </Grid>
           </Grid>
         </Paper>
@@ -550,6 +552,18 @@ const AgentSettings = ({ settings }) => {
                 helperText="Digite apenas DDD + número (ex: 48988368758). O código do país (+55) é adicionado automaticamente. Somente estes números são reconhecidos como admins da secretária."
                 variant="outlined"
                 size="small"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                className={classes.field}
+                label="WhatsApp do Proprietário (opcional)"
+                variant="outlined"
+                size="small"
+                value={values.agentOwnerNumber}
+                onChange={handleChange("agentOwnerNumber")}
+                placeholder="48988368758"
+                helperText="Mesmo formato acima: DDD + número. Para onde o agente de atendimento manda alertas urgentes. Em branco, usa o primeiro número de admin da lista."
               />
             </Grid>
             <Grid item xs={12} sm={6}>

@@ -6,6 +6,7 @@ import Title from "../../components/Title";
 import { makeStyles, Paper, Tabs, Tab } from "@material-ui/core";
 
 import TabPanel from "../../components/TabPanel";
+import { ComSelo } from "../../components/SuperAdminBadge";
 
 import SchedulesForm from "../../components/SchedulesForm";
 import CompaniesManager from "../../components/CompaniesManager";
@@ -16,7 +17,6 @@ import Uploader from "../../components/Settings/Uploader";
 import AgentSettings from "../../components/Settings/AgentSettings";
 import IntegrationSettings from "../../components/Settings/IntegrationSettings";
 import CalendarSettings from "../../components/Settings/CalendarSettings";
-import NewCompaniesManager from "../../pages/Companies";
 import TokenGovernance from "../../components/Settings/TokenGovernance";
 
 import { i18n } from "../../translate/i18n.js";
@@ -179,13 +179,12 @@ const SettingsCustom = () => {
           <Tab label="Agente IA" value={"agent"} />
           <Tab label="Calendário" value={"calendar"} />
           {schedulesEnabled && <Tab label="Horários" value={"schedules"} />}
-		  {isSuper() ? <Tab label="Logo" value={"uploader"} /> : null}
-          {isSuper() ? <Tab label="Empresas" value={"companies"} /> : null}
-		  {isSuper() ? <Tab label="Cadastrar Empresa" value={"newcompanie"} /> : null}
-          {isSuper() ? <Tab label="Planos" value={"plans"} /> : null}
-          {isSuper() ? <Tab label="Ajuda" value={"helps"} /> : null}
-          {isSuper() ? <Tab label="Chaves LLMs" value={"integrations"} /> : null}
-          {isSuper() ? <Tab label="Tokens" value={"tokens"} /> : null}
+		  {isSuper() ? <Tab label={<ComSelo>Logo</ComSelo>} value={"uploader"} /> : null}
+          {isSuper() ? <Tab label={<ComSelo>Empresas</ComSelo>} value={"companies"} /> : null}
+          {isSuper() ? <Tab label={<ComSelo>Planos</ComSelo>} value={"plans"} /> : null}
+          {isSuper() ? <Tab label={<ComSelo>Ajuda</ComSelo>} value={"helps"} /> : null}
+          {isSuper() ? <Tab label={<ComSelo>Chaves LLMs</ComSelo>} value={"integrations"} /> : null}
+          {isSuper() ? <Tab label={<ComSelo>Tokens</ComSelo>} value={"tokens"} /> : null}
         </Tabs>
         <Paper className={classes.paper} elevation={0}>
           <TabPanel
@@ -208,18 +207,6 @@ const SettingsCustom = () => {
                 name={"companies"}
               >
                 <CompaniesManager />
-              </TabPanel>
-            )}
-          />
-          <OnlyForSuperUser
-            user={currentUser}
-            yes={() => (
-              <TabPanel
-                className={classes.container}
-                value={tab}
-                name={"newcompanie"}
-              >
-                <NewCompaniesManager />
               </TabPanel>
             )}
           />
