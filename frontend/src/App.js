@@ -30,14 +30,26 @@ const App = () => {
         []
     );
 
-    // Paleta Blue Steel — substitui o verde original por tons de azul-aço (#4682B4).
-    // Tons derivados: principal (#4682B4), escuro (#2C5282) para gradientes,
-    // claro (#5C97C8) para acentos, muito escuro (#1E3A5F) para texto em light mode.
-    const BLUE_STEEL = {
-        main: "#4682B4",
-        dark: "#2C5282",
-        light: "#5C97C8",
-        deep: "#1E3A5F"
+    // Paleta institucional Otron — manual da marca v1.0 (agosto/2026).
+    //
+    // Cores oficiais do manual:
+    //   #123739 Verde-petróleo — estrutura, texto
+    //   #BDF23C Lima          — ativação, dado
+    //   #F4F2EC Papel         — fundo de bloco
+    //   #3E4A48 Grafite       — texto corrido
+    //
+    // `dark` e `light` NÃO estão no manual: são derivados do verde-petróleo
+    // mantendo matiz (183°) e saturação (52%) e variando só a luminosidade.
+    // Servem ao gradiente e aos estados de hover, que precisam de degrau
+    // tonal sem inventar uma cor fora da identidade.
+    const OTRON = {
+        main: "#123739",  // hsl(183, 52%, 15%) — verde-petróleo do manual
+        dark: "#0B2223",  // hsl(183, 52%,  9%) — fim do gradiente
+        light: "#1D5A5D", // hsl(183, 52%, 24%) — hover e acentos
+        deep: "#0B2223",  // texto de maior peso em fundo claro
+        lime: "#BDF23C",  // ativação: item ativo, indicador, badge
+        paper: "#F4F2EC", // fundo de bloco
+        graphite: "#3E4A48" // texto corrido
     };
 
     const theme = createTheme(
@@ -50,11 +62,11 @@ const App = () => {
                 },
                 "&::-webkit-scrollbar-thumb": {
                     boxShadow: 'inset 0 0 6px rgba(0, 0, 0, 0.2)',
-                    backgroundColor: BLUE_STEEL.main,
+                    backgroundColor: OTRON.main,
 					borderRadius: "8px",
                 },
                 "&::-webkit-scrollbar-thumb:hover": {
-                    backgroundColor: BLUE_STEEL.dark,
+                    backgroundColor: OTRON.dark,
                 },
             },
             scrollbarStylesSoft: {
@@ -69,19 +81,24 @@ const App = () => {
             },
             palette: {
                 type: mode,
-                primary: { main: mode === "light" ? BLUE_STEEL.main : "#FFFFFF", dark: BLUE_STEEL.dark, light: BLUE_STEEL.light },
-                quicktags: { main: mode === "light" ? BLUE_STEEL.main : BLUE_STEEL.main },
-				sair: { main: mode === "light" ? BLUE_STEEL.main : "#333" },
-				vcard: { main: mode === "light" ? BLUE_STEEL.main : "#666" },
-                textPrimary: mode === "light" ? BLUE_STEEL.main : "#FFFFFF",
-                borderPrimary: mode === "light" ? BLUE_STEEL.main : "#FFFFFF",
+                primary: { main: mode === "light" ? OTRON.main : "#FFFFFF", dark: OTRON.dark, light: OTRON.light },
+                // Cor de ativação do manual da marca. Usada para o que o
+                // usuário precisa localizar rápido: item de menu ativo,
+                // indicador de aba e badge de superadmin. Fica legível tanto
+                // sobre o verde-petróleo quanto sobre fundo claro.
+                ativacao: { main: OTRON.lime, contrastText: OTRON.main },
+                quicktags: { main: mode === "light" ? OTRON.main : OTRON.main },
+				sair: { main: mode === "light" ? OTRON.main : "#333" },
+				vcard: { main: mode === "light" ? OTRON.main : "#666" },
+                textPrimary: mode === "light" ? OTRON.main : "#FFFFFF",
+                borderPrimary: mode === "light" ? OTRON.main : "#FFFFFF",
                 dark: { main: mode === "light" ? "#333333" : "#F3F3F3" },
                 light: { main: mode === "light" ? "#F3F3F3" : "#333333" },
                 tabHeaderBackground: mode === "light" ? "#EEE" : "#666",
                 ticketlist: mode === "light" ? "#fafafa" : "#333",
                 optionsBackground: mode === "light" ? "#fafafa" : "#333",
 				options: mode === "light" ? "#fafafa" : "#666",
-				fontecor: mode === "light" ? BLUE_STEEL.deep : "#fff",
+				fontecor: mode === "light" ? OTRON.deep : "#fff",
                 fancyBackground: mode === "light" ? "#fafafa" : "#333",
 				bordabox: mode === "light" ? "#eee" : "#333",
 				newmessagebox: mode === "light" ? "#eee" : "#333",
@@ -98,7 +115,7 @@ const App = () => {
                 inputBackground: mode === "light" ? "#FFFFFF" : "#333",
                 // Gradiente da barra superior: transição suave do azul-aço principal para o escuro,
                 // dando profundidade sem ruído visual.
-                barraSuperior: mode === "light" ? `linear-gradient(to right, ${BLUE_STEEL.main}, ${BLUE_STEEL.main}, ${BLUE_STEEL.dark})` : "#666",
+                barraSuperior: mode === "light" ? `linear-gradient(to right, ${OTRON.main}, ${OTRON.main}, ${OTRON.dark})` : "#666",
 				boxticket: mode === "light" ? "#EEE" : "#666",
 				campaigntab: mode === "light" ? "#ededed" : "#666",
 				mediainput: mode === "light" ? "#ededed" : "#1c1c1c",

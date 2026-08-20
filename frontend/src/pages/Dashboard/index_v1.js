@@ -70,11 +70,11 @@ const useStyles = makeStyles((theme) => ({
     height: "100%",
     borderRadius: 16,
     // Shadow colorizado com a cor da marca — visual mais moderno e integrado
-    boxShadow: "0 4px 16px rgba(70, 130, 180, 0.18)",
+    boxShadow: "0 4px 16px rgba(18, 55, 57, 0.18)",
     transition: "transform 0.25s ease, box-shadow 0.25s ease",
     "&:hover": {
       transform: "translateY(-3px)",
-      boxShadow: "0 10px 28px rgba(70, 130, 180, 0.28)",
+      boxShadow: "0 10px 28px rgba(18, 55, 57, 0.28)",
     },
     background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
     color: theme.palette.primary.contrastText,

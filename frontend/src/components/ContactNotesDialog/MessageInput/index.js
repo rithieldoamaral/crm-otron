@@ -90,7 +90,7 @@ const useStyles = makeStyles(theme => ({
 	},
 
 	circleLoading: {
-		color: "#4682B4",
+		color: "#123739",
 		opacity: "70%",
 		position: "absolute",
 		top: "20%",
@@ -99,7 +99,7 @@ const useStyles = makeStyles(theme => ({
 	},
 
 	audioLoading: {
-		color: "#4682B4",
+		color: "#123739",
 		opacity: "70%",
 	},
 

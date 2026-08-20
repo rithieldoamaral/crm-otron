@@ -169,7 +169,7 @@ const useStyles = makeStyles((theme) => ({
   },
   whatsappIcon: {
     fontSize: "14px",
-    color: "#4682B4",
+    color: "#123739",
   },
   lastMessage: {
     fontSize: "0.75rem",
@@ -264,7 +264,7 @@ const useStyles = makeStyles((theme) => ({
     color: grey[600],
   },
   presenceIndicator: {
-    color: "#4682B4",
+    color: "#123739",
     fontWeight: "bold",
     fontSize: "0.8rem",
   },
@@ -272,7 +272,7 @@ const useStyles = makeStyles((theme) => ({
     fontSize: "0.7rem",
     marginLeft: "6px",
     fontWeight: "600",
-    "&.recent": { color: "#4682B4" },
+    "&.recent": { color: "#123739" },
     "&.warning": { color: orange[500] },
     "&.critical": { color: red[500] },
   },
@@ -287,7 +287,7 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   actionIconSuccess: {
-    color: "#4682B4",
+    color: "#123739",
   },
   actionIconDanger: {
     color: red[500],

@@ -61,7 +61,7 @@ const useStyles = makeStyles((theme) => ({
     ...theme.scrollbarStyles,
   },
   circleLoading: {
-    color: "#4682B4",
+    color: "#123739",
     position: "absolute",
     opacity: "70%",
     top: 0,
@@ -259,7 +259,7 @@ const useStyles = makeStyles((theme) => ({
     marginRight: 4,
   },
   ackDoneAllIcon: {
-    color: "#4682B4",
+    color: "#123739",
     fontSize: 18,
     verticalAlign: "middle",
     marginLeft: 4,
@@ -270,8 +270,8 @@ const useStyles = makeStyles((theme) => ({
     justifyContent: "center",
     backgroundColor: "inherit",
     padding: 10,
-    backgroundColor: theme.mode === 'light' ? '#4682B4' : '#1c1c1c',
-    color: theme.mode === 'light' ? '#4682B4' : '#FFF',
+    backgroundColor: theme.mode === 'light' ? '#123739' : '#1c1c1c',
+    color: theme.mode === 'light' ? '#123739' : '#FFF',
   },
   documentContainer: {
     display: "flex",
@@ -953,13 +953,13 @@ const MessagesList = ({ ticket, ticketId, isGroup, onMessagesLoad }) => {
     href={message.quotedMsg.mediaUrl}
     target="_blank"
     sx={(theme) => ({
-      borderColor: theme.palette.mode === 'light' ? '#4682B4' : '#FFF',
-      color: theme.palette.mode === 'light' ? '#4682B4' : '#FFF',
-      backgroundColor: theme.palette.mode === 'light' ? '#4682B410' : '#1c1c1c',
+      borderColor: theme.palette.mode === 'light' ? '#123739' : '#FFF',
+      color: theme.palette.mode === 'light' ? '#123739' : '#FFF',
+      backgroundColor: theme.palette.mode === 'light' ? '#12373910' : '#1c1c1c',
       '&:hover': {
-        backgroundColor: theme.palette.mode === 'light' ? '#4682B420' : '#333',
-        borderColor: theme.palette.mode === 'light' ? '#4682B4' : '#FFF',
-        color: theme.palette.mode === 'light' ? '#4682B4' : '#FFF',
+        backgroundColor: theme.palette.mode === 'light' ? '#12373920' : '#333',
+        borderColor: theme.palette.mode === 'light' ? '#123739' : '#FFF',
+        color: theme.palette.mode === 'light' ? '#123739' : '#FFF',
       }
     })}
   >

@@ -132,7 +132,7 @@ const useStyles = makeStyles((theme) => ({
     borderRadius: 3,
     backgroundColor: "#e0e0e0",
     "& .MuiLinearProgress-bar": {
-      backgroundColor: "#4682B4",
+      backgroundColor: "#123739",
       borderRadius: 3,
     },
   },

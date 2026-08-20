@@ -116,7 +116,7 @@ const useStyles = makeStyles((theme) => ({
     zIndex: 1000,
   },
   circleLoading: {
-    color: "#4682B4",
+    color: "#123739",
     opacity: "70%",
     position: "absolute",
     top: "20%",
@@ -124,7 +124,7 @@ const useStyles = makeStyles((theme) => ({
     marginLeft: -12,
   },
   audioLoading: {
-    color: "#4682B4",
+    color: "#123739",
     opacity: "70%",
   },
   recorderWrapper: {
@@ -245,7 +245,7 @@ const useStyles = makeStyles((theme) => ({
     color: purple[500],
   },
   audioIcon: {
-    color: "#4682B4",
+    color: "#123739",
   },
   // Drag and drop styles
   dragOverlay: {

@@ -10,7 +10,7 @@ const useStyles = makeStyles(theme => ({
 
 	buttonProgress: {
 		// Blue Steel — alinhado à paleta principal do theme (App.js)
-		color: "#4682B4",
+		color: "#123739",
 		position: "absolute",
 		top: "50%",
 		left: "50%",

@@ -83,7 +83,7 @@ const useStyles = makeStyles((theme) => ({
 
   badgeStyle: {
     color: "white",
-    backgroundColor: "#4682B4",
+    backgroundColor: "#123739",
   },
 
   acceptButton: {

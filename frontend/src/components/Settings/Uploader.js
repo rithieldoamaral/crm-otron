@@ -57,7 +57,7 @@ const useStyles = makeStyles((theme) => ({
     borderRadius: 4,
     width: "100%",
     "& .MuiTab-wrapper": {
-      color: "#2C5282"
+      color: "#0B2223"
     },
     "& .MuiTabs-flexContainer": {
       justifyContent: "center"

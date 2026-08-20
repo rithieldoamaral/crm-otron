@@ -145,7 +145,7 @@ const useStyles = makeStyles(theme => ({
     fontWeight: 500,
     marginLeft: theme.spacing(1),
     '& .MuiSvgIcon-root': {
-      color: theme.palette.type === 'dark' ? "#5C97C8" : "#4682B4",
+      color: theme.palette.type === 'dark' ? "#1D5A5D" : "#123739",
       fontSize: 16,
     }
   },

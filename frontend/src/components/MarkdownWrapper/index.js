@@ -191,8 +191,8 @@ const MarkdownWrapper = ({ children, message }) => {
 	const contact = matches ? matches[0] : '';
 	const number = matches ? matches[1] : '';
 	const vcardStyle = {
-		backgroundColor: '#5C97C8',
-		border: '1.5px solid #4682B4',
+		backgroundColor: '#1D5A5D',
+		border: '1.5px solid #123739',
 		borderRadius: '4px',
 		width: '300px',
 		display: 'flex',
