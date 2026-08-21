@@ -144,38 +144,61 @@ export function CompanyForm(props) {
     setModalUser(false);
   };
 
+  /**
+   * Avança a data de vencimento em um ciclo da recorrência.
+   *
+   * Atalho para "o cliente pagou": empurra o vencimento para o próximo
+   * período sem precisar calcular a data na mão.
+   *
+   * As guardas abaixo antes falhavam em SILÊNCIO — sem data ou sem
+   * recorrência, o clique não fazia nada e nada explicava o motivo. Agora
+   * cada caso avisa o que está faltando.
+   */
   const incrementDueDate = () => {
     const data = { ...record };
-    if (data.dueDate !== "" && data.dueDate !== null) {
-      switch (data.recurrence) {
-        case "MENSAL":
-          data.dueDate = moment(data.dueDate)
-            .add(1, "month")
-            .format("YYYY-MM-DD");
-          break;
-        case "BIMESTRAL":
-          data.dueDate = moment(data.dueDate)
-            .add(2, "month")
-            .format("YYYY-MM-DD");
-          break;
-        case "TRIMESTRAL":
-          data.dueDate = moment(data.dueDate)
-            .add(3, "month")
-            .format("YYYY-MM-DD");
-          break;
-        case "SEMESTRAL":
-          data.dueDate = moment(data.dueDate)
-            .add(6, "month")
-            .format("YYYY-MM-DD");
-          break;
-        case "ANUAL":
-          data.dueDate = moment(data.dueDate)
-            .add(12, "month")
-            .format("YYYY-MM-DD");
-          break;
-        default:
-          break;
-      }
+
+    if (!data.dueDate) {
+      toast.warning(
+        "Defina primeiro a Data de Vencimento — o botão avança a partir dela."
+      );
+      return;
+    }
+
+    if (!data.recurrence) {
+      toast.warning(
+        "Escolha a Recorrência — é ela que define quanto tempo avançar."
+      );
+      return;
+    }
+
+    switch (data.recurrence) {
+      case "MENSAL":
+        data.dueDate = moment(data.dueDate)
+          .add(1, "month")
+          .format("YYYY-MM-DD");
+        break;
+      case "BIMESTRAL":
+        data.dueDate = moment(data.dueDate)
+          .add(2, "month")
+          .format("YYYY-MM-DD");
+        break;
+      case "TRIMESTRAL":
+        data.dueDate = moment(data.dueDate)
+          .add(3, "month")
+          .format("YYYY-MM-DD");
+        break;
+      case "SEMESTRAL":
+        data.dueDate = moment(data.dueDate)
+          .add(6, "month")
+          .format("YYYY-MM-DD");
+        break;
+      case "ANUAL":
+        data.dueDate = moment(data.dueDate)
+          .add(12, "month")
+          .format("YYYY-MM-DD");
+        break;
+      default:
+        break;
     }
     setRecord(data);
   };
@@ -264,8 +287,8 @@ export function CompanyForm(props) {
                     name="status"
                     margin="dense"
                   >
-                    <MenuItem value={true}>Sim</MenuItem>
-                    <MenuItem value={false}>Não</MenuItem>
+                    <MenuItem value={true}>Ativado</MenuItem>
+                    <MenuItem value={false}>Desativado</MenuItem>
                   </Field>
                 </FormControl>
               </Grid>
@@ -315,10 +338,10 @@ export function CompanyForm(props) {
                     margin="dense"
                   >
                     <MenuItem value="MENSAL">Mensal</MenuItem>
-                    {/*<MenuItem value="BIMESTRAL">Bimestral</MenuItem>*/}
-                    {/*<MenuItem value="TRIMESTRAL">Trimestral</MenuItem>*/}
-                    {/*<MenuItem value="SEMESTRAL">Semestral</MenuItem>*/}
-                    {/*<MenuItem value="ANUAL">Anual</MenuItem>*/}
+                    <MenuItem value="BIMESTRAL">Bimestral</MenuItem>
+                    <MenuItem value="TRIMESTRAL">Trimestral</MenuItem>
+                    <MenuItem value="SEMESTRAL">Semestral</MenuItem>
+                    <MenuItem value="ANUAL">Anual</MenuItem>
                   </Field>
                 </FormControl>
               </Grid>
@@ -404,7 +427,10 @@ export function CompaniesManagerGrid(props) {
   const { dateToClient } = useDate();
 
   const renderStatus = (row) => {
-    return row.status === false ? "Não" : "Sim";
+    // "Ativado/Desativado" em vez de "Sim/Não": a coluna responde se a
+    // empresa está ativa (pagamento em dia) ou expirada. "Sim" isolado num
+    // cabeçalho "Status" não dizia sim para quê.
+    return row.status === false ? "Desativado" : "Ativado";
   };
 
   const renderPlan = (row) => {
@@ -553,7 +579,13 @@ export default function CompaniesManager() {
   const handleSubmit = async (data) => {
     setLoading(true);
     try {
-      if (data.id !== undefined) {
+      // Checagem de VERDADE, não de `!== undefined`: o formulário inicializa
+      // `record` com `id: ""`, e string vazia não é undefined — a condição
+      // antiga era sempre verdadeira, então TODO cadastro novo caía em
+      // update() e disparava PUT /companies/ sem id. Criar empresa por esta
+      // aba nunca funcionou; só a aba de cadastro (removida por ser a página
+      // pública de signup) chegava ao save().
+      if (data.id) {
         await update(data);
       } else {
         await save(data);
@@ -562,8 +594,14 @@ export default function CompaniesManager() {
       handleCancel();
       toast.success("Operação realizada com sucesso!");
     } catch (e) {
+      // Mostra o erro REAL do backend em vez de um texto fixo. A mensagem
+      // genérica anterior escondia a causa (ex.: nome duplicado vs. rota
+      // errada), e quem via o toast não tinha como distinguir.
+      const detalhe = e?.response?.data?.error || e?.message;
       toast.error(
-        "Não foi possível realizar a operação. Verifique se já existe uma empresa com o mesmo nome ou se os campos foram preenchidos corretamente"
+        detalhe
+          ? `Não foi possível salvar: ${detalhe}`
+          : "Não foi possível salvar a empresa. Verifique os campos e tente novamente."
       );
     }
     setLoading(false);

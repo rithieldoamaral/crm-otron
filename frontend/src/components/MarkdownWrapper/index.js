@@ -192,6 +192,10 @@ const MarkdownWrapper = ({ children, message }) => {
 	const number = matches ? matches[1] : '';
 	const vcardStyle = {
 		backgroundColor: '#1D5A5D',
+		// Cor de texto explicita: o cartao tem fundo escuro fixo nos DOIS modos,
+		// entao o texto nao pode herdar a cor do tema (que e escura no modo
+		// claro, deixando texto escuro sobre fundo escuro).
+		color: '#FFFFFF',
 		border: '1.5px solid #123739',
 		borderRadius: '4px',
 		width: '300px',

@@ -413,7 +413,7 @@ const Schedules = () => {
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon color={theme.palette.mode === "dark" ? "disabled" : "action"} />
+                  <SearchIcon color={theme.palette.type === "dark" ? "disabled" : "action"} />
                 </InputAdornment>
               ),
             }}

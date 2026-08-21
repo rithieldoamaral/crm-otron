@@ -370,7 +370,7 @@ const useStyles = makeStyles((theme) => ({
     transition: "all 0.3s ease",
     opacity: 1,
     "&:hover": {
-      backgroundColor: theme.palette.mode === 'light' ? '#f5f5f5' : '#424242',
+      backgroundColor: theme.palette.type === 'light' ? '#f5f5f5' : '#424242',
       transform: "scale(1.1)",
       boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
     },
@@ -953,13 +953,13 @@ const MessagesList = ({ ticket, ticketId, isGroup, onMessagesLoad }) => {
     href={message.quotedMsg.mediaUrl}
     target="_blank"
     sx={(theme) => ({
-      borderColor: theme.palette.mode === 'light' ? '#123739' : '#FFF',
-      color: theme.palette.mode === 'light' ? '#123739' : '#FFF',
-      backgroundColor: theme.palette.mode === 'light' ? '#12373910' : '#1c1c1c',
+      borderColor: theme.palette.type === 'light' ? '#123739' : '#FFF',
+      color: theme.palette.type === 'light' ? '#123739' : '#FFF',
+      backgroundColor: theme.palette.type === 'light' ? '#12373910' : '#1c1c1c',
       '&:hover': {
-        backgroundColor: theme.palette.mode === 'light' ? '#12373920' : '#333',
-        borderColor: theme.palette.mode === 'light' ? '#123739' : '#FFF',
-        color: theme.palette.mode === 'light' ? '#123739' : '#FFF',
+        backgroundColor: theme.palette.type === 'light' ? '#12373920' : '#333',
+        borderColor: theme.palette.type === 'light' ? '#123739' : '#FFF',
+        color: theme.palette.type === 'light' ? '#123739' : '#FFF',
       }
     })}
   >

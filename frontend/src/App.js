@@ -88,7 +88,12 @@ const App = () => {
                 // sobre o verde-petróleo quanto sobre fundo claro.
                 ativacao: { main: OTRON.lime, contrastText: OTRON.main },
                 quicktags: { main: mode === "light" ? OTRON.main : OTRON.main },
-				sair: { main: mode === "light" ? OTRON.main : "#333" },
+				// contrastText explicito: o fundo do botao Sair e escuro nos DOIS
+				// modos (verde-petroleo no claro, #333 no escuro), entao o texto e
+				// branco sempre. O estilo antes lia `theme.palette.text.sair`, que
+				// NUNCA existiu nesta paleta: a cor caia em undefined e o texto
+				// herdava o escuro do tema.
+				sair: { main: mode === "light" ? OTRON.main : "#333", contrastText: "#FFFFFF", dark: mode === "light" ? OTRON.dark : "#222" },
 				vcard: { main: mode === "light" ? OTRON.main : "#666" },
                 textPrimary: mode === "light" ? OTRON.main : "#FFFFFF",
                 borderPrimary: mode === "light" ? OTRON.main : "#FFFFFF",

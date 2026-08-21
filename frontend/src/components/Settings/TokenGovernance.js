@@ -24,6 +24,7 @@ import { makeStyles } from "@material-ui/core/styles";
 import WarningIcon from "@material-ui/icons/Warning";
 
 import api from "../../services/api";
+import ModelPricesManager from "./ModelPricesManager";
 import toastError from "../../errors/toastError";
 import { toast } from "react-toastify";
 
@@ -439,6 +440,11 @@ const TokenGovernance = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Cadastro de precos: fica nesta aba porque e aqui que o custo e
+          lido. Separar em outra aba obrigaria a ir e voltar toda vez que o
+          painel sinalizasse um modelo sem preco. */}
+      <ModelPricesManager />
     </div>
   );
 };

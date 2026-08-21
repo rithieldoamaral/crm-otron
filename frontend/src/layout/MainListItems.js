@@ -76,7 +76,14 @@ const useStyles = makeStyles((theme) => ({
     borderRadius: 10,
     marginTop: 10,
     backgroundColor: theme.palette.sair.main,
-    color: theme.palette.text.sair,
+    // theme.palette.text.sair NAO EXISTE — o caminho certo e sair.contrastText.
+    // Com o caminho errado a cor virava undefined e o texto herdava o escuro
+    // do tema, ficando ilegivel sobre o fundo escuro do botao no modo claro.
+    color: theme.palette.sair.contrastText,
+    // O icone tambem herdava listItemIcon (cinza), sumindo no fundo escuro.
+    '& $listItemIcon': {
+      color: theme.palette.sair.contrastText,
+    },
     '&:hover': {
       backgroundColor: theme.palette.sair.dark,
     }
