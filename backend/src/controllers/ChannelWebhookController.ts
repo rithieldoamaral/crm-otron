@@ -4,6 +4,11 @@ import Whatsapp from "../models/Whatsapp";
 import { getChannelConfig } from "../services/ChannelService/channelConfig";
 import { handleIncomingChannelMessage } from "../services/ChannelService/handleIncomingChannelMessage";
 import {
+  handleChannelStatus,
+  parseStatusMeta,
+  parseStatusTwilio
+} from "../services/ChannelService/handleChannelStatus";
+import {
   parsePayloadMeta,
   parsePayloadTwilio
 } from "../services/ChannelService/parseIncoming";
@@ -131,6 +136,29 @@ export const receive = async (
 
   // Responde JÁ. Tudo abaixo roda depois, sem poder mudar esta resposta.
   res.sendStatus(200);
+
+  // Eventos de STATUS chegam pela mesma rota das mensagens. Sem processá-los,
+  // os tiques de entregue/lido nunca funcionariam no canal oficial.
+  const statuses = ehTwilio
+    ? parseStatusTwilio(req.body)
+    : parseStatusMeta(req.body);
+
+  // eslint-disable-next-line no-restricted-syntax
+  for (const status of statuses) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await handleChannelStatus(status, whatsapp);
+    } catch (err: any) {
+      logger.error({
+        fn: "ChannelWebhook.receive",
+        whatsappId: whatsapp.id,
+        companyId: whatsapp.companyId,
+        channelMessageId: status.channelMessageId,
+        err: err.message,
+        msg: "Falha ao aplicar status de entrega"
+      });
+    }
+  }
 
   // eslint-disable-next-line no-restricted-syntax
   for (const incoming of mensagens) {

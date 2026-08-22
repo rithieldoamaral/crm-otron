@@ -1,39 +1,42 @@
 import gracefulShutdown from "http-graceful-shutdown";
+import cron from "node-cron";
+import { Op } from "sequelize";
 import app from "./app";
 import { initIO } from "./libs/socket";
 import { logger } from "./utils/logger";
 import { StartAllWhatsAppsSessions } from "./services/WbotServices/StartAllWhatsAppsSessions";
 import Company from "./models/Company";
 import { startQueueProcess } from "./queues";
+import { iniciarMonitoramentoDeCanais } from "./services/ChannelService/checkChannelHealth";
 import { TransferTicketQueue } from "./wbotTransferTicketQueue";
 import BirthdayIntelligentService from "./services/RetentionService/BirthdayIntelligentService";
 import PreventiveReminderService from "./services/RetentionService/PreventiveReminderService";
 import WinbackService from "./services/RetentionService/WinbackService";
-import cron from "node-cron";
-import { runSecretaryAlerts }   from "./services/SecretaryService/secretaryAlerts";
-import { runMorningBriefings }  from "./services/SecretaryService/secretaryBriefing";
-import { runReminderSender }    from "./services/GoogleCalendarService/reminderSender";
+import { runSecretaryAlerts } from "./services/SecretaryService/secretaryAlerts";
+import { runMorningBriefings } from "./services/SecretaryService/secretaryBriefing";
+import { runReminderSender } from "./services/GoogleCalendarService/reminderSender";
 import { runAutoCloseScheduled } from "./services/RetentionService/AutoCloseScheduledService";
 import SystemLog from "./models/SystemLog";
-import { Op } from "sequelize";
-
 
 const server = app.listen(process.env.PORT, async () => {
   const companies = await Company.findAll();
   const allPromises: any[] = [];
   companies.map(async c => {
-  
-  	if(c.status === true){  
-    	const promise = StartAllWhatsAppsSessions(c.id);
-    	allPromises.push(promise);
-    }else{
-    	logger.info(`Empresa INATIVA: ${c.id} | ${c.name}`);
+    if (c.status === true) {
+      const promise = StartAllWhatsAppsSessions(c.id);
+      allPromises.push(promise);
+    } else {
+      logger.info(`Empresa INATIVA: ${c.id} | ${c.name}`);
     }
-  
   });
 
   Promise.all(allPromises).then(() => {
     startQueueProcess();
+
+    // Canal oficial nao tem socket: sem sessao que caia, a conexao ficaria
+    // marcada como "Conectado" para sempre mesmo com token revogado ou conta
+    // suspensa. O monitor pergunta ao provedor periodicamente.
+    iniciarMonitoramentoDeCanais();
   });
   logger.info(`Server started on port: ${process.env.PORT}`);
 });
@@ -45,18 +48,14 @@ process.on("uncaughtException", err => {
 });
 
 process.on("unhandledRejection", (reason, p) => {
-  console.error(
-    `${new Date().toUTCString()} unhandledRejection:`,
-    reason,
-    p
-  );
+  console.error(`${new Date().toUTCString()} unhandledRejection:`, reason, p);
   process.exit(1);
 });
 
-
-cron.schedule("*/5 * * * *", async () => {  // De 1 minuto para 5 minutos
+cron.schedule("*/5 * * * *", async () => {
+  // De 1 minuto para 5 minutos
   try {
-    logger.info(`Serviço de transferência de tickets iniciado`);
+    logger.info("Serviço de transferência de tickets iniciado");
     await TransferTicketQueue();
   } catch (error) {
     logger.error("Error in cron job:", error);
@@ -138,9 +137,13 @@ cron.schedule("0 3 * * *", async () => {
   try {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 30);
-    const deleted = await SystemLog.destroy({ where: { createdAt: { [Op.lt]: cutoff } } });
+    const deleted = await SystemLog.destroy({
+      where: { createdAt: { [Op.lt]: cutoff } }
+    });
     if (deleted > 0) {
-      logger.info(`[SystemLogs] Limpeza: ${deleted} registros removidos (> 30 dias)`);
+      logger.info(
+        `[SystemLogs] Limpeza: ${deleted} registros removidos (> 30 dias)`
+      );
     }
   } catch (error) {
     logger.error("[SystemLogs] Erro no cron de limpeza:", error);
