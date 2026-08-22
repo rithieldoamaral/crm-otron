@@ -52,7 +52,6 @@ import {
 import MainContainer from "../../components/MainContainer";
 import MainHeader from "../../components/MainHeader";
 import MainHeaderButtonsWrapper from "../../components/MainHeaderButtonsWrapper";
-import VerifiedUserIcon from "@material-ui/icons/VerifiedUser";
 import ChannelWizard from "../../components/ChannelWizard";
 import Title from "../../components/Title";
 
@@ -561,17 +560,9 @@ const Connections = () => {
                   variant="contained"
                   className={classes.primaryButton}
                   startIcon={<AddCircleOutline />}
-                  onClick={handleOpenWhatsAppModal}
-                >
-                  {i18n.t("connections.buttons.add")}
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  startIcon={<VerifiedUserIcon />}
                   onClick={() => setWizardAberto(true)}
                 >
-                  Canal oficial
+                  {i18n.t("connections.buttons.add")}
                 </Button>
                 <Button
                   variant="contained"
