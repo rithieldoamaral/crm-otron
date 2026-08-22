@@ -392,6 +392,78 @@ Lista todas as conexões WhatsApp da empresa.
 - **Editar** — abre configurações da conexão
 - **Excluir** — remove permanentemente
 
+### 6.1.1 Os três tipos de conexão
+
+Ao clicar em **Canal oficial**, o assistente pergunta qual tipo você quer. A
+diferença entre eles é importante:
+
+| Tipo | Como conecta | Risco de bloqueio | Custo |
+|---|---|---|---|
+| **WhatsApp comum** | QR Code, como no WhatsApp Web | ⚠️ **Existe** | Grátis |
+| **Oficial via Twilio** | Credenciais da Twilio | ✅ Nenhum | Poucos reais/mês |
+| **Oficial direto com a Meta** | Credenciais da Meta | ✅ Nenhum | O menor por mensagem |
+
+**Sobre o risco do WhatsApp comum:** ele usa uma forma de conexão que não é
+autorizada pela Meta. Isso vale mesmo quando é um atendente humano digitando —
+não é o robô que gera o risco, é o tipo de conexão. O sistema já tem proteções
+(simula tempo de digitação humana, evita padrões robóticos), mas elas **reduzem**
+a chance de bloqueio, não eliminam.
+
+**Os dois tipos podem conviver.** Você pode ter um número comum e um oficial na
+mesma empresa, cada um com sua finalidade. O que **não** dá é usar os dois no
+mesmo número: cada número é de um tipo só.
+
+### 6.1.2 A regra das 24 horas (só nos canais oficiais)
+
+Esta é a diferença que mais impacta o dia a dia. Nos canais oficiais:
+
+- **Cliente te escreveu nas últimas 24h?** Você responde o que quiser, à
+  vontade, e essas respostas são **gratuitas**.
+- **Passou de 24h sem o cliente escrever?** Aí só dá para mandar uma **mensagem
+  pré-aprovada pela Meta** (chamada de *template*).
+
+Isso significa que lembrete de aniversário, reengajamento e campanha **precisam
+de mensagem pré-aprovada** no canal oficial. Você cria e envia para aprovação no
+painel da Meta; o CRM busca as aprovadas e usa automaticamente quando precisa.
+
+Se não houver nenhuma mensagem aprovada disponível, o envio **falha e avisa** —
+de propósito. É melhor você saber na hora do que o sistema dizer "enviado" e o
+cliente nunca receber.
+
+### 6.1.3 Conectando um canal oficial (passo a passo)
+
+O assistente foi feito para não exigir conhecimento técnico. Ele tem 4 etapas:
+
+1. **Tipo de conexão** — escolha Twilio ou Meta. Cada cartão mostra o que você
+   precisa ter em mãos antes de começar.
+2. **Credenciais** — um campo por vez, e cada um explica *onde encontrar aquilo*
+   no painel do provedor. Tem botão de colar, porque esses códigos são longos.
+   Ao final, o sistema **testa de verdade** contra a Meta/Twilio e diz o que
+   está errado se falhar.
+3. **Webhook** — o CRM monta o endereço e o código sozinho. Você só copia e cola
+   no painel do provedor, seguindo os passos numerados na tela.
+4. **Teste** — envia uma mensagem para o seu próprio WhatsApp. Só finaliza
+   depois que você confirmar que **recebeu**.
+
+> **Por que a etapa 4 existe:** credencial certa e webhook cadastrado ainda podem
+> não entregar mensagem (número não registrado, conta suspensa, saldo zerado).
+> Descobrir isso agora é muito melhor que descobrir com o cliente real.
+
+**O botão "Conectar com Facebook"** aparece desabilitado no cartão da Meta. Ele
+conecta tudo com um clique só, mas exige que sua empresa esteja verificada na
+Meta e o aplicativo aprovado. Quando isso acontecer, ele é liberado.
+
+### 6.1.4 O que não funciona no canal oficial (ainda)
+
+Alguns recursos só existem no WhatsApp comum e avisam com erro claro se você
+tentar usá-los num canal oficial:
+
+- Reações a mensagens (emoji)
+- Apagar mensagem já enviada
+- Grupos
+- Integração com Typebot
+
+
 ### Configurações de cada conexão WhatsApp
 
 Ao clicar em **Editar**, abre o modal com os campos:

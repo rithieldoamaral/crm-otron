@@ -2082,3 +2082,82 @@ template para responder a quem acabou de escrever. Teste explícito trava isso.
 Fase 5 (assistente de conexão na interface). Hoje o canal oficial envia, recebe
 e usa template, mas só pode ser configurado por escrita direta no banco —
 nenhuma tela cria conexão oficial ainda.
+
+## 2026-08-22 — Canal oficial: Fases 5 e 6 + revisão geral das seis fases
+
+### Fase 5 — Assistente de Conexão
+
+Backend: `validateCredentials` testa a credencial contra a API REAL do provedor
+e traduz o erro para linguagem de dono de negócio. Credencial sintaticamente
+perfeita falha por motivos que só a API sabe (token sem permissão, número não
+registrado, WABA suspensa) — e "erro ao validar" não ajudaria ninguém a
+resolver. Os códigos da Graph API viram frases acionáveis.
+
+Frontend: assistente em 4 etapas, cada uma em componente próprio (II.4).
+
+**Decisões de UX que carregam intenção:**
+
+- **Um campo por vez.** Seis campos vazios com nomes que a pessoa nunca viu é
+  o desenho que faz quem não é técnico fechar a tela.
+- **"Onde encontro isso?" em cada campo**, com o caminho literal no painel do
+  provedor — não o nome técnico do parâmetro.
+- **O CRM monta a URL do webhook e gera o token sozinho.** Descobrir o próprio
+  domínio é um dos pontos onde alguém sem conhecimento técnico trava.
+- **Teste de envio real antes de finalizar**, com a pergunta "chegou?" feita a
+  um humano. O provedor responder "aceito" não prova entrega; só quem está com
+  o celular sabe. Sem isso, criaríamos conexão que parece funcionar e não
+  funciona — o pior estado possível.
+- **A conexão só é criada DEPOIS da credencial passar.** Criar antes deixaria
+  conexões órfãs a cada tentativa malsucedida.
+
+**Embedded Signup** construído de verdade, desabilitado por
+`REACT_APP_META_EMBEDDED_SIGNUP`. Ligar depois é trocar a flag.
+
+### Fase 6 — Documentação
+
+`docs/MANUAL_PLATAFORMA.md` §6.1.1 a §6.1.4, escrito para o operador e não para
+o desenvolvedor: comparação dos três tipos, a regra das 24h explicada pelo
+efeito prático (o que deixa de funcionar), o passo a passo do assistente e a
+lista honesta do que ainda NÃO funciona em canal oficial.
+
+### REVISÃO GERAL — achado de segurança nas próprias fases anteriores
+
+**`WhatsAppController` vazava o `channelConfig` cifrado para o navegador.** Os
+controllers devolvem o model inteiro (`res.json(whatsapp)`), e a coluna nova
+entrou junto — em toda listagem de conexões.
+
+Não era vazamento de token em texto puro (o valor é cifrado), mas XV.6 exige
+acesso RESTRITO a credencial de terceiro. Mandar ciphertext para todo cliente
+que abre a tela de Conexões é o oposto: qualquer resposta capturada vira
+material decifrável no dia em que a chave vazar.
+
+**Corrigido no MODEL, não nos controllers:** `Whatsapp.toJSON()` remove o campo
+de qualquer serialização. No controller, seria preciso lembrar em cada endpoint
+novo; no model, é impossível esquecer. Quem precisa do valor usa
+`getChannelConfig`, que lê o atributo direto e não passa pelo `toJSON`.
+
+Teste novo (`channelConfig.spec.ts`) trava as duas propriedades: o cifrado não
+contém o texto puro, e a máscara mostra identificador sem revelar segredo.
+
+### Conferência dos critérios de sucesso da diretiva
+
+| Critério | Verificação |
+|---|---|
+| Baileys inalterado | Suíte foi de 107/1551 para 110/1585 — só os novos |
+| Agente responde sem saber o canal | Adaptador atrás de interface neutra |
+| Fora da janela usa template ou falha alto | `pickTemplate` + `ERR_OUTSIDE_SERVICE_WINDOW` |
+| `humanTypingDelay` não roda em canal oficial | Só aparece em comentário fora do Baileys |
+| Assinatura inválida → 403 | Dois pontos no controller, com teste |
+| Empresa vem da URL, nunca do corpo | `req.params.whatsappId` |
+| Credencial não aparece em log nem em API | Auditado; corrigido o vazamento do model |
+
+### Pendente após as seis fases
+
+1. **Teste automatizado de isolamento entre empresas no webhook.** A diretiva
+   pede prova de que o webhook da empresa A não escreve na B. A proteção existe
+   (companyId sempre da conexão resolvida no servidor), mas o teste que a trava
+   ainda não foi escrito — depende de mock de banco que os specs atuais não têm.
+2. **Mídia recebida não é baixada.** A URL da Cloud API expira em ~5 minutos;
+   hoje guardamos a referência. Anexo recebido por canal oficial ainda não
+   aparece no ticket.
+3. **Sem cobertura de teste no frontend** — débito geral do projeto.

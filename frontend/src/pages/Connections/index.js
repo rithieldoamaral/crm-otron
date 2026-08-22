@@ -52,6 +52,8 @@ import {
 import MainContainer from "../../components/MainContainer";
 import MainHeader from "../../components/MainHeader";
 import MainHeaderButtonsWrapper from "../../components/MainHeaderButtonsWrapper";
+import VerifiedUserIcon from "@material-ui/icons/VerifiedUser";
+import ChannelWizard from "../../components/ChannelWizard";
 import Title from "../../components/Title";
 
 import api from "../../services/api";
@@ -349,6 +351,10 @@ const Connections = () => {
     }
   };
 
+  // Assistente de canal oficial. O fluxo de QR Code continua sendo o modal
+  // existente — o assistente só cuida de Cloud API e Twilio.
+  const [wizardAberto, setWizardAberto] = useState(false);
+
   const handleOpenWhatsAppModal = () => {
     setSelectedWhatsApp(null);
     setWhatsAppModalOpen(true);
@@ -560,6 +566,14 @@ const Connections = () => {
                   {i18n.t("connections.buttons.add")}
                 </Button>
                 <Button
+                  variant="outlined"
+                  color="primary"
+                  startIcon={<VerifiedUserIcon />}
+                  onClick={() => setWizardAberto(true)}
+                >
+                  Canal oficial
+                </Button>
+                <Button
                   variant="contained"
                   className={classes.secondaryButton}
                   startIcon={<SettingsBackupRestore />}
@@ -726,6 +740,12 @@ const Connections = () => {
           </>
         )}
       </Paper>
+      <ChannelWizard
+        open={wizardAberto}
+        onClose={() => setWizardAberto(false)}
+        onConcluido={() => window.location.reload()}
+        onEscolherQrCode={handleOpenWhatsAppModal}
+      />
     </MainContainer>
   );
 };

@@ -193,6 +193,29 @@ class Whatsapp extends Model<Whatsapp> {
   @Default(false)
   @Column(DataType.BOOLEAN)
   isSecretaryChannel: boolean;
+
+  /**
+   * Remove `channelConfig` de QUALQUER serialização para JSON.
+   *
+   * Os controllers de WhatsApp devolvem o model inteiro ao frontend
+   * (`res.json(whatsapp)`). Sem este override, o ciphertext das credenciais
+   * trafegaria para o navegador em toda listagem de conexões.
+   *
+   * O valor é cifrado, então não é vazamento de token em texto puro — mas
+   * CLAUDE.md XV.6 exige acesso RESTRITO a credencial de terceiro, e mandar
+   * ciphertext para todo cliente que abre a tela de Conexões é o oposto
+   * disso: qualquer resposta capturada vira material decifrável no dia em
+   * que a chave vazar.
+   *
+   * A guarda fica no MODEL, e não em cada controller, porque assim nenhum
+   * endpoint futuro pode esquecer de removê-la. Quem precisa do valor usa
+   * `getChannelConfig`, que lê o atributo direto e não passa por aqui.
+   */
+  toJSON(): Record<string, unknown> {
+    const valores = { ...this.get() } as Record<string, unknown>;
+    delete valores.channelConfig;
+    return valores;
+  }
 }
 
 export default Whatsapp;

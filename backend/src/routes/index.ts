@@ -46,6 +46,7 @@ import globalSettingsRoutes from "./globalSettingsRoutes";
 import tokenGovernanceRoutes from "./tokenGovernanceRoutes";
 import channelWebhookRoutes from "./channelWebhookRoutes";
 import whatsappTemplateRoutes from "./whatsappTemplateRoutes";
+import channelSetupRoutes from "./channelSetupRoutes";
 
 const routes = Router();
 
@@ -96,5 +97,6 @@ routes.use(globalSettingsRoutes);
 routes.use(tokenGovernanceRoutes);
 routes.use(channelWebhookRoutes);
 routes.use(whatsappTemplateRoutes);
+routes.use(channelSetupRoutes);
 
 export default routes;

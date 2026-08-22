@@ -90,9 +90,46 @@ SEGUNDOS. Sem converter, toda mensagem cairia em 1970 e a janela de 24h daria
 sempre fechada — o sistema exigiria template para responder a quem acabou de
 escrever. Há teste travando isso.
 
-Ainda não entregue: o assistente de conexão na interface (Fase 5). O canal
-oficial já envia, recebe e usa template, mas hoje só pode ser configurado por
-escrita direta no banco.
+**Assistente de Conexão (Fase 5).** Quatro etapas, feitas para quem não é
+técnico. As decisões que importam:
+
+- **Um campo por vez**, não um formulário com seis campos vazios de nomes que
+  a pessoa nunca viu — esse é o desenho que faz alguém fechar a tela.
+- **"Onde encontro isso?"** em cada campo, com o caminho literal dentro do
+  painel do provedor, não o nome técnico do parâmetro.
+- **Validação contra a API real**, com o erro traduzido: "este token não tem a
+  permissão whatsapp_business_messaging" em vez de "erro ao validar".
+- **O CRM monta a URL do webhook e gera o token sozinho.** Descobrir o próprio
+  domínio é um dos pontos onde quem não é técnico trava.
+- **Teste de envio real antes de finalizar**, com a pergunta "chegou?" feita a
+  um humano. O provedor responder "aceito" não prova entrega; só quem está com
+  o celular sabe. Sem isso, criaríamos conexão que parece funcionar e não
+  funciona.
+- **A conexão só é criada depois da credencial passar**, para não deixar
+  conexões órfãs a cada tentativa malsucedida.
+
+O botão "Conectar com Facebook" está construído e desabilitado por
+`REACT_APP_META_EMBEDDED_SIGNUP` — ligar depois é trocar a flag.
+
+**Documentação (Fase 6).** `docs/MANUAL_PLATAFORMA.md` §6.1.1 a §6.1.4, escrito
+para o operador: comparação dos três tipos, a regra das 24h explicada pelo
+efeito prático (o que deixa de funcionar), o passo a passo e a lista honesta do
+que ainda NÃO funciona em canal oficial.
+
+**Vazamento corrigido na revisão das próprias fases anteriores.** Os
+controllers de WhatsApp devolvem o model inteiro (`res.json(whatsapp)`), e a
+coluna `channelConfig` entrou junto — o ciphertext das credenciais trafegava
+para o navegador em toda listagem de conexões. Não era token em texto puro, mas
+XV.6 exige acesso restrito: qualquer resposta capturada vira material
+decifrável no dia em que a chave vazar.
+
+Corrigido em `Whatsapp.toJSON()`, no MODEL e não nos controllers — assim
+nenhum endpoint futuro pode esquecer de remover o campo.
+
+Ainda pendente: teste automatizado de isolamento entre empresas no webhook (a
+proteção existe, o teste que a trava não), e download da mídia recebida (a URL
+da Cloud API expira em ~5 min; hoje só guardamos a referência).
+
 
 
 
