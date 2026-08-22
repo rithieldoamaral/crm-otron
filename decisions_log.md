@@ -1930,3 +1930,81 @@ fix; 4 falhavam no estado anterior.
    Chat Interno, menu e Configurações após o deploy.
 
 ---
+
+## 2026-08-21 — Canal oficial do WhatsApp (Cloud API + Twilio) convivendo com Baileys
+
+**Contexto:** o usuário quer testar a API oficial da Meta mantendo o Baileys em
+operação. Pesquisa de mercado e mapeamento de código feitos antes de qualquer
+linha ser escrita. Diretiva completa em `directives/canal_oficial_whatsapp.md`.
+
+### Correção de premissa do usuário (registrada porque muda a decisão)
+
+O usuário supôs que atendente humano usando Baileys "não teria problema de
+banimento, assim como o WhatsApp Web". **Não procede.** O WhatsApp Web oficial
+é cliente da Meta; o Baileys reimplementa o protocolo por fora, o que viola os
+ToS **independente de quem aperta enviar**. Um humano digitando reduz a
+probabilidade de detecção (padrão comportamental plausível), não o risco de ToS.
+
+Também registrado: **Baileys e API oficial não coexistem no mesmo número.**
+Manter os dois significa números diferentes — o que já é suportado pela
+arquitetura multi-conexão existente.
+
+### Decisões do usuário (via AskUserQuestion)
+
+1. **Assistente guiado agora + botão de Embedded Signup construído e desligado
+   por flag**, para ligar quando o CNPJ for verificado. Não é stub: o código é
+   real, atrás de `META_EMBEDDED_SIGNUP_ENABLED` (default false).
+2. **Os dois conectores em paralelo** (Twilio e Meta direto).
+3. **Templates somente sincronizados**, não criados no CRM.
+
+### Decisão arquitetural: adaptador paralelo, não refatoração
+
+`handleMessage` recebe `proto.IWebMessageInfo` (tipo nativo do Baileys) dentro
+de um arquivo de **4.343 linhas**, e **19 arquivos** chamam `wbot.sendMessage()`
+direto. Três opções avaliadas:
+
+- **A — falsificar `proto.IWebMessageInfo`** para reusar o listener: rejeitada.
+  Campo não preenchido vira `undefined` silencioso no meio de 4.343 linhas.
+- **B — refatorar `handleMessage` para tipo neutro**: rejeitada AGORA. Tocar
+  arquivo desse tamanho sem cobertura, para entregar feature nova, viola II.6 e
+  concentra risco no caminho que já é produção.
+- **C — caminho paralelo reusando os serviços de negócio**: **escolhida.** O
+  canal oficial tem handler próprio que chama `FindOrCreateTicketService`,
+  `AgentService` e `verifyMessage` sem passar pelo listener do Baileys.
+
+**Custo aceito:** duplicação de orquestração entre os dois caminhos. Preferível
+a arriscar o canal em produção. Convergir para B quando o listener tiver testes.
+
+### Achado durante a investigação que encurtou o plano
+
+A diretiva previa trabalho para preservar o corpo bruto da requisição (necessário
+para validar o HMAC do webhook da Meta). Verificação em `app.ts:37` mostrou que
+**o projeto já preenche `req.rawBody`** via `verify` do bodyParser. Trabalho
+eliminado e o risco correspondente saiu da tabela de Failure Modes.
+
+### Pontos de atenção que a diretiva trava
+
+- **Janela de 24h quebra funcionalidade proativa existente.** Aniversário,
+  retenção, campanhas e briefing da Secretária não funcionam no canal oficial
+  sem template. Comportamento obrigatório: falhar alto com
+  `ERR_OUTSIDE_SERVICE_WINDOW`, nunca tentar enviar como mensagem livre — a Meta
+  aceitaria a chamada e o cliente não receberia (falha silenciosa).
+- **`humanTypingDelay` não roda em canal oficial.** A humanização existe para
+  driblar detecção de automação; no canal autorizado só piora a experiência.
+  Por isso `sendTyping` é opcional na interface do adaptador.
+- **Credenciais cifradas em repouso (XV.6).** Token permanente da Meta e Auth
+  Token da Twilio são credenciais de terceiro: AES-256-GCM, máscara no frontend,
+  jamais em log.
+- **Mídia da Cloud API expira em ~5 minutos** — baixar no webhook, nunca depois.
+- **Idempotência por `channelMessageId`** — a Meta reenvia o webhook se não
+  receber 200 rápido; sem isso a mensagem duplica no ticket.
+
+### Tech debt aceito
+
+1. Duplicação de orquestração (consequência da opção C).
+2. 17 pontos seguem Baileys-only (Typebot, reações, deleção, grupos) e falham
+   alto em canal oficial.
+3. Embedded Signup construído mas não exercitado em produção até a Meta aprovar.
+4. Templates somente leitura.
+
+---
