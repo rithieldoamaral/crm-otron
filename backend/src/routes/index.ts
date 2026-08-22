@@ -44,6 +44,8 @@ import packageRoutes from "./packageRoutes";
 import financeRoutes from "./financeRoutes";
 import globalSettingsRoutes from "./globalSettingsRoutes";
 import tokenGovernanceRoutes from "./tokenGovernanceRoutes";
+import channelWebhookRoutes from "./channelWebhookRoutes";
+import whatsappTemplateRoutes from "./whatsappTemplateRoutes";
 
 const routes = Router();
 
@@ -92,5 +94,7 @@ routes.use(packageRoutes);
 routes.use(financeRoutes);
 routes.use(globalSettingsRoutes);
 routes.use(tokenGovernanceRoutes);
+routes.use(channelWebhookRoutes);
+routes.use(whatsappTemplateRoutes);
 
 export default routes;

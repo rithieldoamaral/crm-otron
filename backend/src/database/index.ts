@@ -4,6 +4,7 @@ import Setting from "../models/Setting";
 import Contact from "../models/Contact";
 import Ticket from "../models/Ticket";
 import Whatsapp from "../models/Whatsapp";
+import WhatsappTemplate from "../models/WhatsappTemplate";
 import ContactCustomField from "../models/ContactCustomField";
 import Message from "../models/Message";
 import Queue from "../models/Queue";
@@ -77,6 +78,7 @@ const models = [
   Ticket,
   Message,
   Whatsapp,
+  WhatsappTemplate,
   ContactCustomField,
   Setting,
   Queue,
@@ -134,7 +136,7 @@ const models = [
   GlobalSetting,
   CalendarProfessional,
   ProfessionalCalendar,
-  ProfessionalWorkingHours,
+  ProfessionalWorkingHours
 ];
 
 sequelize.addModels(models);

@@ -6,11 +6,23 @@ import wbotMonitor from "./wbotMonitor";
 import { logger } from "../../utils/logger";
 import * as Sentry from "@sentry/node";
 import AppError from "../../errors/AppError";
+import { isCanalOficial } from "../ChannelService/types";
 
 export const StartWhatsAppSession = async (
   whatsapp: Whatsapp,
   companyId: number
 ): Promise<void> => {
+  // Canal oficial nao tem sessao para abrir: e webhook + REST, sem socket e
+  // sem QR Code. Tentar iniciar geraria erro no boot de toda empresa que
+  // tiver uma conexao oficial cadastrada.
+  // Ver directives/canal_oficial_whatsapp.md §7.1.
+  if (isCanalOficial(whatsapp.channelType)) {
+    logger.info(
+      `Conexao ${whatsapp.name} (ID: ${whatsapp.id}) e canal ${whatsapp.channelType}: sem sessao a iniciar.`
+    );
+    return;
+  }
+
   // Verificar se já está conectado
   const whatsappUpdated = await Whatsapp.findOne({
     where: { id: whatsapp.id }

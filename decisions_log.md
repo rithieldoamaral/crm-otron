@@ -2008,3 +2008,77 @@ eliminado e o risco correspondente saiu da tabela de Failure Modes.
 4. Templates somente leitura.
 
 ---
+
+## 2026-08-22 — Canal oficial: Fases 1 a 4 implementadas
+
+Execução de `directives/canal_oficial_whatsapp.md`. Fases 1 (fundação), 2
+(envio), 3 (webhook) e 4 (templates).
+
+### Decisões tomadas durante a implementação
+
+**Uma guarda no funil, não 17 espalhadas.** A diretiva previa inserir
+`ERR_FEATURE_BAILEYS_ONLY` em cada um dos ~17 pontos que chamam
+`wbot.sendMessage()` direto. Ao implementar, ficou claro que TODOS passam por
+`GetTicketWbot`. A guarda foi para lá: um único ponto que não pode ser
+esquecido quando alguém adicionar o 18º. Menos código e cobertura maior.
+
+**Regressão de performance que eu mesmo introduzi e corrigi.** A primeira
+versão do roteamento chamava `ShowWhatsAppService` (query com includes de filas
+e integrações) em TODO envio, inclusive Baileys — custo novo no caminho mais
+quente de um CRM de WhatsApp. Trocado por `ticket.whatsapp ?? findByPk`, que
+nem consulta quando o ticket já traz a conexão carregada.
+
+**Guarda de 1 linha em `verifyMessage`.** Canal oficial não produz
+`proto.IWebMessageInfo` e persiste a mensagem por conta própria
+(`persistOutgoingMessage`), devolvendo `null`. Todos os chamadores de
+`SendWhatsAppMessage` passam o retorno para `verifyMessage`, que quebraria na
+primeira linha ao ler `msg.key`. Um `if (!msg) return;` no topo resolve sem
+tocar no resto das 4.343 linhas — alternativa seria alterar os 4 chamadores.
+
+**Campos que `MessageData` não aceita.** A primeira versão gravava `remoteJid`,
+`participant`, `dataJson` e `isEdited` copiando o formato do listener Baileys.
+O `CreateMessageService` não tem esses campos na interface — são preenchidos por
+outro caminho. O `tsc` pegou; removidos.
+
+### Segurança da rota pública de webhook
+
+A rota NÃO leva `isAuth`, e isso não é exceção à XV.1: ela não depende de estar
+escondida — o endereço é entregue ao provedor de propósito. A autenticação é a
+ASSINATURA (HMAC-SHA256 no caso da Meta, `validateRequest` do SDK no caso da
+Twilio).
+
+Três decisões dentro dela:
+
+1. **`timingSafeEqual`, nunca `===`.** Comparação comum sai no primeiro byte
+   diferente; a diferença de tempo entre "errou no byte 1" e "errou no byte 30"
+   vaza informação suficiente para forjar a assinatura byte a byte.
+2. **Negar quando não consegue conferir.** Sem assinatura, sem segredo ou sem
+   corpo → `false`. Verificação que devolve `true` na dúvida é pior que não ter
+   verificação, porque dá impressão de proteção.
+3. **200 antes de processar.** A Meta reenvia se demorar; processar antes de
+   responder produziria duplicata. A idempotência por `channelMessageId` cobre
+   a reentrega que acontecer mesmo assim.
+
+Empresa resolvida pelo `whatsappId` da URL, nunca por campo do corpo (XV.3).
+
+### Armadilha travada por teste
+
+A Meta envia timestamp unix em SEGUNDOS. Sem converter, toda mensagem cairia em
+1970 e `estaNaJanelaDeAtendimento` daria SEMPRE fechada — o sistema exigiria
+template para responder a quem acabou de escrever. Teste explícito trava isso.
+
+### Verificação
+
+- 53 testes novos na camada de canal, todos verdes
+- Suíte completa: **107 suítes / 1551 testes, zero falhas** — critério de
+  sucesso da Fase 1 (Baileys inalterado) atendido
+- `tsc` limpo, build de produção limpo
+- Migrations aplicadas em banco real; as 2 conexões existentes assumiram
+  `channelType = "baileys"` pelo default, confirmando que a base legada não
+  precisou de migração de dados
+
+### Pendente
+
+Fase 5 (assistente de conexão na interface). Hoje o canal oficial envia, recebe
+e usa template, mas só pode ser configurado por escrita direta no banco —
+nenhuma tela cria conexão oficial ainda.

@@ -85,6 +85,28 @@ class Whatsapp extends Model<Whatsapp> {
   @Column({ defaultValue: "stable" })
   provider: string;
 
+  /**
+   * Tipo de canal: "baileys" | "cloud_api" | "twilio".
+   *
+   * NAO confundir com `provider` acima, que guarda a versao do protocolo
+   * Baileys ("stable" vs beta) desde 2022 — nome parecido, semantica
+   * diferente. Ver directives/canal_oficial_whatsapp.md §4.1.
+   */
+  @Default("baileys")
+  @Column
+  channelType: string;
+
+  /**
+   * Credenciais do canal, em JSON CIFRADO (AES-256-GCM).
+   *
+   * Guarda token permanente da Meta / Auth Token da Twilio: credencial de
+   * terceiro, que por CLAUDE.md XV.6 nao pode ficar em texto puro nem ir
+   * para log. Leitura e escrita SOMENTE via services/ChannelService/
+   * channelConfig.ts — nunca decifrar em outro lugar.
+   */
+  @Column(DataType.TEXT)
+  channelConfig: string;
+
   @Default(false)
   @AllowNull
   @Column
@@ -115,19 +137,18 @@ class Whatsapp extends Model<Whatsapp> {
   @Column
   token: string;
 
-  //@Default(0)
-  //@Column
-  //timeSendQueue: number;
+  // @Default(0)
+  // @Column
+  // timeSendQueue: number;
 
-  //@Column
-  //sendIdQueue: number;
-  
+  // @Column
+  // sendIdQueue: number;
+
   @Column
   transferQueueId: number;
 
   @Column
-  timeToTransfer: number;  
-
+  timeToTransfer: number;
 
   @ForeignKey(() => Prompt)
   @Column
@@ -151,7 +172,7 @@ class Whatsapp extends Model<Whatsapp> {
 
   @Column
   expiresTicket: number;
-  
+
   @Column
   number: string;
 
@@ -161,7 +182,7 @@ class Whatsapp extends Model<Whatsapp> {
   @Default("")
   @Column(DataType.TEXT)
   pixMessage: string;
-  
+
   @Column
   expiresInactiveMessage: string;
 

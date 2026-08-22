@@ -7,6 +7,95 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Added — Canal oficial do WhatsApp: envio, recebimento e templates (2026-08-21)
+
+Fases 1 e 2 de `directives/canal_oficial_whatsapp.md`. O sistema passa a saber
+enviar mensagem por três canais — `baileys` (atual), `cloud_api` (Meta direto)
+e `twilio` — sem que Agente, Secretária ou serviços de ticket saibam qual está
+em uso.
+
+**O Baileys não mudou.** É o critério de sucesso declarado da Fase 1: o
+`BaileysAdapter` apenas embrulha o comportamento existente para dar a ele a
+mesma interface dos canais novos. Nenhuma melhoria foi introduzida ali — seria
+mudança disfarçada de refatoração, no caminho que já está em produção.
+
+**Por que adaptador e não refatoração do listener.** `handleMessage` recebe
+`proto.IWebMessageInfo` dentro de um arquivo de 4.343 linhas, e 19 arquivos
+chamam `wbot.sendMessage()` direto. Falsificar essa estrutura para reusar o
+listener faria campo não preenchido virar `undefined` silencioso no meio do
+arquivo; refatorá-lo sem cobertura concentraria risco no que já funciona. O
+canal oficial ganhou caminho próprio, reusando os serviços de negócio.
+
+**Credenciais cifradas em repouso.** `Whatsapps.channelConfig` guarda token
+permanente da Meta e Auth Token da Twilio — credenciais de terceiro, que por
+CLAUDE.md XV.6 não podem ficar em texto puro. AES-256-GCM com IV aleatório por
+operação: cifra determinística vazaria informação sem precisar de chave, já que
+bastaria comparar duas linhas do banco para saber que duas empresas usam a mesma
+credencial. O frontend recebe só máscara (`••••abcd`), nunca o valor.
+
+**Janela de 24 horas.** Nos canais oficiais, mensagem livre só vale até 24h
+após a última mensagem DO CLIENTE. Fora disso o envio falha alto com
+`ERR_OUTSIDE_SERVICE_WINDOW` em vez de tentar: a Meta rejeitaria a chamada e o
+sistema marcaria como enviada — o cliente nunca receberia e ninguém ficaria
+sabendo. Mensagem nossa não reabre a janela, senão o sistema a manteria viva
+falando sozinho.
+
+**Uma guarda no funil, não 17 espalhadas.** Mídia, reações, deleção, grupos e
+Typebot ainda falam com o socket direto e não funcionam em canal oficial. Em vez
+de replicar a verificação em cada ponto, ela ficou dentro de `GetTicketWbot`,
+por onde todos passam — um único lugar que não pode ser esquecido quando
+alguém adicionar o 18º.
+
+**Sem SDK para a Cloud API, com SDK para a Twilio.** O SDK oficial da Meta para
+Node está arquivado desde 2023; depender de biblioteca abandonada no caminho de
+entrega de mensagem seria pior que falar HTTP direto (usamos `axios`, já
+presente). O da Twilio é mantido e traz `validateRequest`, necessário para
+validar assinatura de webhook na Fase 3 — código de segurança onde errar é fácil
+e o erro é silencioso.
+
+**Nova variável obrigatória:** `CHANNEL_CONFIG_SECRET` (ver `.env.example`).
+Trocá-la torna ilegível toda credencial já gravada.
+
+**Recebimento por webhook (Fase 3).** Rota pública `/webhook/whatsapp/:id`,
+protegida por ASSINATURA — não por obscuridade. É a única barreira possível:
+a Meta chama de fora, sem JWT, e o endereço é entregue ao provedor de
+propósito. Verificação HMAC-SHA256 com `timingSafeEqual`, nunca `===`:
+comparação comum sai no primeiro byte diferente, e essa diferença de tempo
+vaza informação suficiente para forjar a assinatura byte a byte.
+
+A verificação NEGA quando não consegue conferir (sem assinatura, sem segredo,
+sem corpo). Uma verificação que devolve `true` na dúvida é pior que não ter
+verificação, porque dá a impressão de proteção.
+
+O 200 é respondido ANTES do processamento: a Meta reenvia o evento se demorar,
+e processar antes de responder produziria mensagem duplicada. A idempotência
+por `channelMessageId` cobre a reentrega que acontecer mesmo assim.
+
+A empresa é resolvida pelo `whatsappId` da URL, NUNCA por campo do corpo
+(XV.3) — o corpo é controlado por quem chama, então confiar nele para decidir
+o tenant permitiria escrever na empresa alheia.
+
+**Templates (Fase 4).** Tabela `WhatsappTemplates` espelha o que já foi
+aprovado no painel da Meta; o CRM não cria nem submete (a aprovação acontece
+lá de qualquer forma). Espelhar em vez de consultar a API a cada envio evita
+que um lembrete falhe porque a API do provedor estava lenta.
+
+A escolha do template recusa PENDING, recusa REJECTED e exige que o número de
+parâmetros bata exatamente — a Meta rejeita tanto parâmetro a mais quanto a
+menos. Preferir devolver `null` (que faz o envio falhar alto) a devolver um
+template que seria recusado é a decisão central dessa função.
+
+**Um detalhe que teria quebrado tudo em silêncio:** a Meta envia timestamp em
+SEGUNDOS. Sem converter, toda mensagem cairia em 1970 e a janela de 24h daria
+sempre fechada — o sistema exigiria template para responder a quem acabou de
+escrever. Há teste travando isso.
+
+Ainda não entregue: o assistente de conexão na interface (Fase 5). O canal
+oficial já envia, recebe e usa template, mas hoje só pode ser configurado por
+escrita direta no banco.
+
+
+
 ### Added — Módulo de governança de tokens no painel superadmin (2026-08-17)
 
 Nova aba **Tokens** em Configurações, visível apenas para o superadmin, com o

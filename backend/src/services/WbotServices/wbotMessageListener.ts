@@ -1563,6 +1563,13 @@ export const verifyMessage = async (
   ticket: Ticket,
   contact: Contact
 ) => {
+  // Canal oficial (Cloud API / Twilio) NAO produz `proto.IWebMessageInfo`:
+  // ele persiste a mensagem por conta propria (ChannelService/
+  // persistOutgoingMessage) e devolve null aqui de proposito. Sem esta
+  // guarda, todo envio por canal oficial quebraria na primeira linha que le
+  // `msg.key`. Ver directives/canal_oficial_whatsapp.md §3.1.
+  if (!msg) return;
+
   const io = getIO();
   const quotedMsg = await verifyQuotedMessage(msg);
   let body = getBodyMessage(msg);
