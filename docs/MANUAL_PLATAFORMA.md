@@ -453,15 +453,50 @@ O assistente foi feito para não exigir conhecimento técnico. Ele tem 4 etapas:
 conecta tudo com um clique só, mas exige que sua empresa esteja verificada na
 Meta e o aplicativo aprovado. Quando isso acontecer, ele é liberado.
 
-### 6.1.4 O que não funciona no canal oficial (ainda)
+### 6.1.4 Diferenças do canal oficial no dia a dia
 
-Alguns recursos só existem no WhatsApp comum e avisam com erro claro se você
-tentar usá-los num canal oficial:
+**O que funciona igual ao WhatsApp comum:**
+
+- O agente de IA responde normalmente, inclusive a áudios (que são
+  transcritos)
+- Fotos, áudios e documentos enviados pelo cliente chegam e ficam salvos
+- Tiques de entregue e lido aparecem nas mensagens
+- Filas, etiquetas, relatórios e todo o resto do CRM
+
+**O que muda:**
+
+- **Sem QR Code.** O card da conexão oficial não mostra QR nem botão de
+  reiniciar — não existe sessão para cair. No lugar aparece o botão
+  “Mensagens pré-aprovadas”.
+- **Um selo “Oficial”** identifica essas conexões na lista, para você não
+  confundir com as comuns.
+- **O sistema verifica sozinho, a cada 15 minutos**, se a conexão continua
+  válida. Se o token for revogado ou a conta suspensa, o status muda para
+  desconectado automaticamente — você não precisa descobrir por reclamação de
+  cliente.
+
+**O que ainda não funciona no canal oficial:**
 
 - Reações a mensagens (emoji)
 - Apagar mensagem já enviada
 - Grupos
 - Integração com Typebot
+
+Ao tentar usar qualquer um deles numa conexão oficial, o sistema avisa com uma
+mensagem clara em vez de falhar em silêncio.
+
+### 6.1.5 Mensagens pré-aprovadas
+
+No card de uma conexão oficial, o botão **Mensagens pré-aprovadas** mostra as
+que já estão aprovadas na sua conta da Meta e disponíveis para uso.
+
+Elas são necessárias quando o cliente não escreve há mais de 24 horas — nesse
+caso a Meta não aceita mensagem livre. O sistema escolhe uma automaticamente,
+e se não houver nenhuma disponível, o envio **falha avisando** em vez de fingir
+que enviou.
+
+**Criar e editar acontece no painel da Meta**, que é onde a aprovação é feita.
+Aqui você usa o botão “Buscar no provedor” para atualizar a lista.
 
 
 ### Configurações de cada conexão WhatsApp

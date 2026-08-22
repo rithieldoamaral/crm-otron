@@ -53,6 +53,9 @@ import MainContainer from "../../components/MainContainer";
 import MainHeader from "../../components/MainHeader";
 import MainHeaderButtonsWrapper from "../../components/MainHeaderButtonsWrapper";
 import ChannelWizard from "../../components/ChannelWizard";
+import ChannelTemplates from "../../components/ChannelTemplates";
+import VerifiedUserIcon from "@material-ui/icons/VerifiedUser";
+import DescriptionIcon from "@material-ui/icons/Description";
 import Title from "../../components/Title";
 
 import api from "../../services/api";
@@ -352,6 +355,13 @@ const Connections = () => {
 
   // Assistente de canal oficial. O fluxo de QR Code continua sendo o modal
   // existente — o assistente só cuida de Cloud API e Twilio.
+  // Espelha `isCanalOficial` do backend. Conexão antiga não tem o campo
+  // preenchido e é Baileys, igual ao default da coluna.
+  const ehOficial = w => ["cloud_api", "twilio"].includes(w?.channelType);
+
+  // Conexão cujas mensagens pré-aprovadas estão sendo consultadas.
+  const [templatesDe, setTemplatesDe] = useState(null);
+
   const [wizardAberto, setWizardAberto] = useState(false);
 
   const handleOpenWhatsAppModal = () => {
@@ -438,6 +448,23 @@ const Connections = () => {
   };
 
   const renderCardActions = whatsApp => {
+    // Canal oficial: QR Code e reinício de sessão não existem aqui. Mostrar
+    // um botão que só pode falhar é pior que não mostrar (item 8).
+    if (ehOficial(whatsApp)) {
+      return (
+        <Button
+          size="small"
+          variant="outlined"
+          color="primary"
+          startIcon={<DescriptionIcon />}
+          onClick={() => setTemplatesDe(whatsApp)}
+          fullWidth
+        >
+          Mensagens pré-aprovadas
+        </Button>
+      );
+    }
+
     return (
       <>
         {whatsApp.status === "qrcode" && (
@@ -620,6 +647,24 @@ const Connections = () => {
                             </Typography>
                           </Box>
                         </Box>
+                        {/* Item 7: com os dois tipos convivendo, não dava
+                            para distinguir um número oficial de um comum. */}
+                        {ehOficial(whatsApp) && (
+                          <Tooltip
+                            arrow
+                            title={
+                              whatsApp.channelType === "twilio"
+                                ? "Canal oficial da Meta via Twilio"
+                                : "Canal oficial direto com a Meta"
+                            }
+                          >
+                            <Chip
+                              label="Oficial"
+                              size="small"
+                              icon={<VerifiedUserIcon fontSize="small" />}
+                            />
+                          </Tooltip>
+                        )}
                         {whatsApp.isDefault && (
                           <Chip
                             label="Padrão"
@@ -731,6 +776,12 @@ const Connections = () => {
           </>
         )}
       </Paper>
+      <ChannelTemplates
+        open={Boolean(templatesDe)}
+        onClose={() => setTemplatesDe(null)}
+        whatsappId={templatesDe?.id}
+        nomeConexao={templatesDe?.name}
+      />
       <ChannelWizard
         open={wizardAberto}
         onClose={() => setWizardAberto(false)}

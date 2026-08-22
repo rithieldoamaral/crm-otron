@@ -2161,3 +2161,72 @@ contém o texto puro, e a máscara mostra identificador sem revelar segredo.
    hoje guardamos a referência. Anexo recebido por canal oficial ainda não
    aparece no ticket.
 3. **Sem cobertura de teste no frontend** — débito geral do projeto.
+
+## 2026-08-22 — Auditoria do canal oficial: itens 1 a 8 corrigidos
+
+Execução dos 8 pontos levantados na auditoria final, em três blocos com
+verificação entre eles.
+
+### Bloco A — o que separava "funciona" de "não funciona"
+
+**Item 1 — o Agente não respondia.** `handleIncomingChannelMessage` criava
+ticket e mensagem mas nunca enfileirava o job do Agente. Mensagem chegava pelo
+canal oficial, ticket aparecia, e ninguém respondia. Atendente humano
+funcionava; o Agente, não.
+
+As condições de acionamento ESPELHAM o caminho Baileys (`isAgentChannel`, não
+ser grupo, ter texto ou áudio). Divergir faria o Agente se comportar diferente
+conforme o canal — exatamente o que a camada de adaptador existe para impedir.
+
+**Item 2 — mídia se perdia.** A URL da Cloud API expira em ~5 minutos.
+`downloadChannelMedia` baixa no momento do webhook. Trata a diferença entre
+provedores: Meta exige DUAS chamadas (id → URL temporária → binário, ambas com
+Bearer — a URL parece pública mas não é); Twilio, uma, com auth básica.
+
+Falha de download não derruba a mensagem. O nome do arquivo passa por
+`sanitizeFilename` porque vem do provedor, que recebeu do CLIENTE — entrada
+hostil (XV.4). Teste prova que `../../../etc/passwd` não escapa da pasta.
+
+**Item 3 — teste de isolamento multi-tenant.** A proteção existia; o teste que
+a trava, não. Agora um payload forjado com `companyId: 999` não escreve na
+empresa 999.
+
+### Bloco B — confiabilidade operacional
+
+**Item 4 — conexão oficial nunca mudava de status.** Sem socket, não há sessão
+que caia: a conexão ficava "Conectado" para sempre mesmo com token revogado.
+O Baileys reage a EVENTOS; aqui é preciso PERGUNTAR ao provedor, a cada 15 min.
+
+Só grava quando o status muda (evita escrita e evento de socket inúteis a cada
+ciclo), só verifica canais oficiais (o Baileys já tem monitor próprio), e falha
+de uma conexão não interrompe a das outras — são empresas diferentes.
+
+**Item 5 — tiques de entrega não funcionavam.** Os eventos de status chegam
+pela mesma rota das mensagens e eram descartados sem atualizar o `ack`.
+
+Duas decisões travadas por teste:
+- **Nunca regride o ack.** Webhooks chegam fora de ordem; um "sent" atrasado
+  não pode apagar um "read" já recebido.
+- **Status desconhecido é ignorado, não adivinhado.** Inventar mostraria estado
+  errado ao atendente — pior que não atualizar.
+
+### Bloco C — interface
+
+**Item 6 — tela de mensagens pré-aprovadas.** Somente leitura, porque a
+aprovação acontece no painel da Meta. Duplicar o formulário aqui daria a
+impressão de que o CRM aprova. O texto evita a palavra "template": para quem
+não é técnico, "mensagem pré-aprovada" diz o que é e por quê.
+
+**Item 7 — selo "Oficial" no card.** Com os dois tipos convivendo, não havia
+como distinguir um número oficial de um comum.
+
+**Item 8 — ações por capacidade do canal.** Canal oficial não tem QR Code nem
+sessão para reiniciar. Em vez de oferecer botão que só pode falhar, o card
+mostra a ação que faz sentido ali: consultar as mensagens pré-aprovadas.
+
+### Item 9 — não implementado, por decisão
+
+Cobertura de teste no frontend exige montar infraestrutura inexistente (não há
+Jest, RTL nem um único `.test.js` em `frontend/`). É iniciativa de projeto, não
+item desta entrega — fazer "dentro" desta leva produziria ou gesto simbólico ou
+desvio do tamanho de um projeto. Registrado para decisão separada.
